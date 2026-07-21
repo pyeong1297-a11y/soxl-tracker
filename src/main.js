@@ -435,6 +435,88 @@ function applyTargetSellExecution() {
   }
 }
 
+// 🔄 매수 + 쿼터매도 동시 체결 반영 (같은 종가)
+function applyBothExecution() {
+  const r = currentCalcResult;
+  if (r.shares === 0) {
+    showToast('새 사이클에서는 동시 체결이 없습니다.');
+    return;
+  }
+  if (r.buyQty <= 0 && r.sellQQty <= 0) {
+    showToast('매수/매도 가능한 수량이 없습니다.');
+    return;
+  }
+
+  const inputStr = prompt(
+    `🔄 [매수 + 쿼터매도 동시 체결]\n` +
+    `오늘 실제 종가(=체결가)를 입력하세요.\n\n` +
+    `처리 순서: ① 쿼터매도 ${r.sellQQty}주 → ② 매수 ${r.buyQty}주\n` +
+    `(원래 보유수량 ${r.shares}주 기준 1/4 = ${r.sellQQty}주 매도 후 매수)`,
+    r.locSellQPrice.toFixed(2)
+  );
+
+  if (inputStr === null) return;
+
+  const closingPrice = parseFloat(inputStr);
+  if (isNaN(closingPrice) || closingPrice <= 0) {
+    showToast('올바른 종가를 입력해주세요.');
+    return;
+  }
+
+  // Step 1: 쿼터매도 먼저 (원래 보유수량 기준 1/4)
+  const originalShares = r.shares;
+  const originalAvg = r.avgPrice;
+  const sellQQty = Math.floor(originalShares / 4);
+  const sellProceeds = sellQQty * closingPrice;
+  const sharesAfterSell = originalShares - sellQQty;
+  const cashAfterSell = r.cashRemaining + sellProceeds;
+  const tAfterSell = r.T * 0.75;
+
+  const sellCostBasis = sellQQty * originalAvg;
+  const sellPL = sellProceeds - sellCostBasis;
+
+  // Step 2: 매수 (쿼터매도 후 상태 기준)
+  const buyQty = r.buyQty;
+  let finalShares = sharesAfterSell;
+  let finalCash = cashAfterSell;
+  let finalAvg = originalAvg; // 매도 시 평단 유지
+  let finalT = tAfterSell;
+
+  if (buyQty > 0) {
+    const buyCost = buyQty * closingPrice;
+    finalShares = sharesAfterSell + buyQty;
+    finalCash = cashAfterSell - buyCost;
+    finalAvg = ((sharesAfterSell * originalAvg) + (buyQty * closingPrice)) / finalShares;
+    finalT = tAfterSell + 1;
+  }
+
+  const totalPL = sellPL;
+  const plText = totalPL >= 0 ? `+$${totalPL.toFixed(0)}` : `-$${Math.abs(totalPL).toFixed(0)}`;
+
+  if (confirm(
+    `🔄 동시 체결 정산 확인\n\n` +
+    `종가: $${closingPrice.toFixed(2)}\n` +
+    `────────────────\n` +
+    `① 쿼터매도: ${sellQQty}주 × $${closingPrice.toFixed(2)} = $${sellProceeds.toFixed(0)} (${plText})\n` +
+    `② 매수: ${buyQty}주 × $${closingPrice.toFixed(2)} = $${(buyQty * closingPrice).toFixed(0)}\n` +
+    `────────────────\n` +
+    `결과: ${finalShares}주, 평단 $${finalAvg.toFixed(4)}, 잔금 $${finalCash.toFixed(0)}, T=${finalT.toFixed(2)}\n\n` +
+    `이대로 반영하시겠습니까?`
+  )) {
+    state.explicitT = finalT;
+    state.explicitCash = finalCash;
+    state.sharesHeld = finalShares;
+    state.avgPrice = parseFloat(finalAvg.toFixed(4));
+
+    elSharesHeld.value = finalShares;
+    elAvgPrice.value = finalAvg.toFixed(4);
+    elCashLeft.value = finalCash.toFixed(2);
+    calculate();
+
+    showToast(`🔄 동시 체결 완료! ${finalShares}주, T=${finalT.toFixed(2)}, 잔금 $${finalCash.toFixed(0)} (쿼터매도 ${plText})`);
+  }
+}
+
 // UTILITIES
 function copyText(text) {
   if (!text || text === '-') return;
