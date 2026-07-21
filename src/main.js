@@ -14,6 +14,14 @@ const defaultState = {
 // State container
 let state = { ...defaultState };
 
+// Computed state cache for execution
+let currentCalcResult = {
+  buyQty: 0,
+  sellQQty: 0,
+  locBuyPrice: 0,
+  locSellQPrice: 0
+};
+
 // DOM Elements
 const elSymbol = document.getElementById('symbol');
 const elSplitCount = document.getElementById('split-count');
@@ -106,9 +114,8 @@ function resetDefaults() {
   }
 }
 
-// Main calculation logic (quantstack.app V4.0 exact specification)
+// Main calculation logic
 function calculate() {
-  // Read values
   const symbol = elSymbol.value;
   const N = parseFloat(elSplitCount.value) || 30;
   const capital = parseFloat(elTotalCapital.value) || 6000;
@@ -116,7 +123,6 @@ function calculate() {
   const shares = parseFloat(elSharesHeld.value) || 0;
   const customCashVal = elCashLeft.value.trim();
 
-  // Save current input to state
   state = {
     symbol,
     splitCount: N,
@@ -127,7 +133,6 @@ function calculate() {
   };
   saveState();
 
-  // Calculate spent & cash
   const spentAmount = shares * avgPrice;
   let cashRemaining = capital - spentAmount;
   
@@ -140,8 +145,7 @@ function calculate() {
 
   if (cashRemaining < 0) cashRemaining = 0;
 
-  // Calculate T (회차)
-  // T = N * (Capital - Cash) / Capital
+  // T Calculation
   let T = (spentAmount / capital) * N;
   if (customCashVal !== '') {
     T = ((capital - cashRemaining) / capital) * N;
@@ -151,13 +155,10 @@ function calculate() {
   if (T > N) T = N;
 
   const halfN = N / 2;
-  const isReverseMode = T >= (N - 1); // Reverse mode triggers when T >= N - 1 (e.g. T > 29 for 30 splits)
+  const isReverseMode = T >= (N - 1);
   const isSecondHalf = T >= halfN;
 
-  // Calculate Star % (별%)
-  // quantstack.app formula:
-  // SOXL:  20분할=(20 - 2T)%,  30분할=(20 - 4/3T)%,  40분할=(20 - 1T)%
-  // TQQQ:  20분할=(15 - 1.5T)%, 30분할=(15 - 1T)%,   40분할=(15 - 0.75T)%
+  // Star % Calculation
   let baseConst = 20;
   let coef = 40 / N;
 
@@ -167,34 +168,33 @@ function calculate() {
   }
 
   const starPct = baseConst - (coef * T);
-  
-  // Star Point (별지점) = 평단가 * (1 + 별%/100)
   const starPoint = avgPrice * (1 + (starPct / 100));
 
-  // 1-Period Buy Budget (1회 매수금) = 잔금 / (분할수 - T)
+  // 1-Period Buy Budget
   let buyBudget = (N - T) > 0 ? (cashRemaining / (N - T)) : 0;
   if (buyBudget < 0) buyBudget = 0;
 
-  // LOC Buy Price = 별지점 - $0.01 (quantstack.app rule for overlap prevention)
   const locBuyPrice = Math.max(0.01, starPoint - 0.01);
-
-  // Buy Quantity
   const buyQty = locBuyPrice > 0 ? Math.floor(buyBudget / locBuyPrice) : 0;
   const buyTotalCost = buyQty * locBuyPrice;
 
-  // LOC Quarter Sell Price & Qty
-  // quantstack.app rule: LOC Quarter Sell at 별지점, Qty = 1/4 of total held shares
   const locSellQPrice = starPoint;
   const sellQQty = Math.floor(shares / 4);
 
-  // Target Limit Sell Price (+20% for SOXL, +15% for TQQQ)
   const targetProfitPct = (symbol === 'TQQQ') ? 1.15 : 1.20;
   const targetSellPrice = avgPrice * targetProfitPct;
   const sellTQty = Math.max(0, shares - sellQQty);
 
-  // --- Update UI Displays ---
+  // Cache for execution apply
+  currentCalcResult = {
+    buyQty,
+    sellQQty,
+    locBuyPrice,
+    locSellQPrice,
+    buyTotalCost
+  };
 
-  // Mode badge
+  // UI Updates
   if (isReverseMode) {
     elModeBadge.innerText = '🔴 리버스모드';
     elModeBadge.className = 'badge badge-warning';
@@ -203,7 +203,6 @@ function calculate() {
     elModeBadge.className = 'badge';
   }
 
-  // Metric 1: T
   elDispTVal.innerText = T.toFixed(2);
   if (isReverseMode) {
     elDispPhase.innerText = `소진 (T > ${(N - 1).toFixed(0)})`;
@@ -213,7 +212,6 @@ function calculate() {
     elDispPhase.innerText = `전반전 (T < ${halfN.toFixed(0)})`;
   }
 
-  // Metric 2: 1회 매수 예산
   elDispBuyBudget.innerText = `$${buyBudget.toFixed(2)}`;
   if (buyQty >= 1) {
     elDispBuyShares.innerText = `약 ${buyQty}주 매수 가능`;
@@ -221,7 +219,6 @@ function calculate() {
     elDispBuyShares.innerText = `0주 (예산 부족)`;
   }
 
-  // Metric 3: 별%
   elDispStarPct.innerText = `${starPct >= 0 ? '+' : ''}${starPct.toFixed(2)}%`;
   if (starPct < 0) {
     elDispStarStatus.innerText = '별지점 < 평단가';
@@ -231,7 +228,6 @@ function calculate() {
     elDispStarStatus.innerText = '별지점 > 평단가';
   }
 
-  // Smart Warning Check
   if (buyQty === 0 && buyBudget > 0) {
     elWarningBanner.style.display = 'flex';
     elWarningText.innerHTML = `⚠️ 1회 매수 예산(<strong>$${buyBudget.toFixed(2)}</strong>)이 LOC 매수가(<strong>$${locBuyPrice.toFixed(2)}</strong>)보다 작아서 <strong>0주</strong> 매수 체결됩니다.<br/>💡 추천: 20분할 전환 또는 원금을 늘리는 것을 고려해보세요.`;
@@ -239,22 +235,17 @@ function calculate() {
     elWarningBanner.style.display = 'none';
   }
 
-  // Ticket: LOC Buy
   elTicketBuyPrice.innerText = `$${locBuyPrice.toFixed(2)}`;
   elTicketBuyQty.innerText = `${buyQty}주`;
   elTicketBuyCost.innerText = `$${buyTotalCost.toFixed(2)}`;
 
-  // Ticket: LOC Quarter Sell
   elTicketSellQPrice.innerText = `$${locSellQPrice.toFixed(2)}`;
   elTicketSellQQty.innerText = `${sellQQty}주`;
 
-  // Ticket: Limit Target Sell
   elTicketSellTPrice.innerText = `$${targetSellPrice.toFixed(2)}`;
   elTicketSellTQty.innerText = `${sellTQty}주`;
 
-  // --- Scenario Predictions ---
-
-  // Scenario 1: Buy Executed (+1 buyQty)
+  // Scenario 1: Buy Executed
   const nextBuyT = Math.min(N, T + 1);
   const nextBuyQty = shares + buyQty;
   const nextBuyCash = Math.max(0, cashRemaining - buyTotalCost);
@@ -265,7 +256,7 @@ function calculate() {
   elScenBuyCash.innerText = `$${nextBuyCash.toFixed(0)}`;
   elScenBuyStar.innerText = `${nextBuyStarPct >= 0 ? '+' : ''}${nextBuyStarPct.toFixed(2)}%`;
 
-  // Scenario 2: Quarter Sell Executed (-sellQQty)
+  // Scenario 2: Quarter Sell Executed
   const nextSellT = T * 0.75;
   const nextSellQty = Math.max(0, shares - sellQQty);
   const recoveredCash = sellQQty * locSellQPrice;
@@ -275,6 +266,33 @@ function calculate() {
   elScenSellQty.innerText = `${nextSellQty}주`;
   elScenSellCash.innerText = `+$${recoveredCash.toFixed(0)} 회복`;
   elScenSellStar.innerText = `${nextSellStarPct >= 0 ? '+' : ''}${nextSellStarPct.toFixed(2)}%`;
+}
+
+// 1-Click Execution Apply Handlers
+function applyBuyExecution() {
+  if (currentCalcResult.buyQty <= 0) {
+    showToast('매수 가능한 수량이 0주입니다.');
+    return;
+  }
+  const oldShares = parseFloat(elSharesHeld.value) || 0;
+  const newShares = oldShares + currentCalcResult.buyQty;
+  
+  elSharesHeld.value = newShares;
+  calculate();
+  showToast(`📥 매수 체결 완료! 보유수량: ${newShares}주로 갱신되었습니다.`);
+}
+
+function applySellExecution() {
+  if (currentCalcResult.sellQQty <= 0) {
+    showToast('매도할 쿼터 수량이 없습니다.');
+    return;
+  }
+  const oldShares = parseFloat(elSharesHeld.value) || 0;
+  const newShares = Math.max(0, oldShares - currentCalcResult.sellQQty);
+  
+  elSharesHeld.value = newShares;
+  calculate();
+  showToast(`📤 쿼터매도 완료! 보유수량: ${newShares}주로 갱신되었습니다.`);
 }
 
 // Copy to Clipboard
@@ -288,7 +306,6 @@ function copyText(text) {
   });
 }
 
-// Copy All Orders Text
 function copyAllOrders() {
   const symbol = elSymbol.value;
   const buyP = elTicketBuyPrice.innerText;
@@ -305,7 +322,6 @@ function copyAllOrders() {
   });
 }
 
-// Toast notification helper
 function showToast(msg) {
   const toast = document.getElementById('toast');
   if (!toast) return;
@@ -313,5 +329,5 @@ function showToast(msg) {
   toast.classList.add('show');
   setTimeout(() => {
     toast.classList.remove('show');
-  }, 2200);
+  }, 2500);
 }

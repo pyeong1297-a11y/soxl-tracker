@@ -124,7 +124,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
+  margin-bottom: 0.85rem;
 }
 
 .card h2 {
@@ -132,6 +132,12 @@ body {
   font-size: 1.1rem;
   font-weight: 600;
   color: var(--text-main);
+}
+
+.section-desc {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
 }
 
 .btn-reset {
@@ -437,7 +443,7 @@ select:focus, input:focus {
   color: var(--text-main);
 }
 
-/* Scenario Card */
+/* Scenario Card & Apply Buttons */
 .scenario-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -454,7 +460,10 @@ select:focus, input:focus {
   background: rgba(15, 23, 42, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: var(--radius-md);
-  padding: 0.85rem;
+  padding: 0.95rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 .scenario-title {
@@ -474,6 +483,7 @@ select:focus, input:focus {
   flex-direction: column;
   gap: 0.3rem;
   color: var(--text-sub);
+  margin-bottom: 0.85rem;
 }
 
 .scenario-details strong {
@@ -486,6 +496,39 @@ select:focus, input:focus {
   font-size: 0.7rem;
   padding: 0.1rem 0.35rem;
   border-radius: 4px;
+}
+
+.btn-apply {
+  width: 100%;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-apply-buy {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.btn-apply-buy:hover {
+  background: rgba(16, 185, 129, 0.35);
+  color: #ffffff;
+}
+
+.btn-apply-sell {
+  background: rgba(139, 92, 246, 0.2);
+  color: #a78bfa;
+  border: 1px solid rgba(139, 92, 246, 0.4);
+}
+
+.btn-apply-sell:hover {
+  background: rgba(139, 92, 246, 0.35);
+  color: #ffffff;
 }
 
 /* Guide Section */
