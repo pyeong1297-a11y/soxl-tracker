@@ -8,22 +8,14 @@ const defaultState = {
   totalCapital: 6000,
   avgPrice: 194.6026,
   sharesHeld: 19,
-  customCash: ''
+  // Explicit tracking (not reverse-calculated)
+  explicitT: null,       // null = auto-calculate from shares, non-null = use directly
+  explicitCash: null      // null = auto-calculate from capital-spent, non-null = use directly
 };
 
-// State container
 let state = { ...defaultState };
 
-// Computed state cache for execution
-let currentCalcResult = {
-  buyQty: 0,
-  sellQQty: 0,
-  sellTQty: 0,
-  locBuyPrice: 0,
-  locSellQPrice: 0,
-  targetSellPrice: 0,
-  buyTotalCost: 0
-};
+let currentCalcResult = {};
 
 // DOM Elements
 const elSymbol = document.getElementById('symbol');
@@ -33,7 +25,6 @@ const elAvgPrice = document.getElementById('avg-price');
 const elSharesHeld = document.getElementById('shares-held');
 const elCashLeft = document.getElementById('cash-left');
 
-// Metric displays
 const elDispTVal = document.getElementById('disp-t-val');
 const elDispPhase = document.getElementById('disp-phase');
 const elDispBuyBudget = document.getElementById('disp-buy-budget');
@@ -44,35 +35,29 @@ const elWarningBanner = document.getElementById('warning-banner');
 const elWarningText = document.getElementById('warning-text');
 const elModeBadge = document.getElementById('mode-badge');
 
-// Ticket Displays
 const elTicketBuyBadge = document.getElementById('ticket-buy-badge');
 const elTicketBuyPrice = document.getElementById('ticket-buy-price');
 const elTicketBuySub = document.getElementById('ticket-buy-sub');
 const elTicketBuyQty = document.getElementById('ticket-buy-qty');
 const elTicketBuyCost = document.getElementById('ticket-buy-cost');
-
 const elTicketSellQPrice = document.getElementById('ticket-sell-q-price');
 const elTicketSellQQty = document.getElementById('ticket-sell-q-qty');
-
 const elTicketSellTPrice = document.getElementById('ticket-sell-t-price');
 const elTicketSellTQty = document.getElementById('ticket-sell-t-qty');
 
-// Scenario Displays
 const elScenBuyT = document.getElementById('scen-buy-t');
 const elScenBuyQty = document.getElementById('scen-buy-qty');
 const elScenBuyCash = document.getElementById('scen-buy-cash');
-
 const elScenSellT = document.getElementById('scen-sell-t');
 const elScenSellQty = document.getElementById('scen-sell-qty');
 const elScenSellCash = document.getElementById('scen-sell-cash');
 
-// Initialize app
+// Initialize
 document.addEventListener('DOMContentLoaded', () => {
   loadSavedState();
   calculate();
 });
 
-// Load state from localStorage
 function loadSavedState() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -83,17 +68,15 @@ function loadSavedState() {
   } catch (e) {
     console.error('Failed to load state', e);
   }
-
-  // Populate inputs
   elSymbol.value = state.symbol || 'SOXL';
   elSplitCount.value = state.splitCount || 30;
   elTotalCapital.value = state.totalCapital || 6000;
   elAvgPrice.value = state.avgPrice || 194.6026;
   elSharesHeld.value = state.sharesHeld !== undefined ? state.sharesHeld : 19;
-  elCashLeft.value = state.customCash || '';
+  // Show explicit cash if tracked
+  elCashLeft.value = (state.explicitCash !== null) ? state.explicitCash : '';
 }
 
-// Save state to localStorage
 function saveState() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -102,12 +85,19 @@ function saveState() {
   }
 }
 
-// Handle manual cash input
 function onCashInput() {
+  // User manually edited cash -> switch to explicit cash tracking
+  const val = elCashLeft.value.trim();
+  if (val === '') {
+    state.explicitCash = null;
+    state.explicitT = null;
+  } else {
+    state.explicitCash = parseFloat(val);
+    state.explicitT = null; // recalculate T from cash
+  }
   calculate();
 }
 
-// Reset defaults
 function resetDefaults() {
   if (confirm('모든 입력값을 기본값으로 초기화하시겠습니까?')) {
     state = { ...defaultState };
@@ -117,60 +107,55 @@ function resetDefaults() {
   }
 }
 
-// Main calculation logic
+// ====== CORE CALCULATION (quantstack.app V4.0 exact) ======
 function calculate() {
   const symbol = elSymbol.value;
   const N = parseFloat(elSplitCount.value) || 30;
   const capital = parseFloat(elTotalCapital.value) || 6000;
-  const avgPrice = parseFloat(elAvgPrice.value) || 194.6026;
+  const avgPrice = parseFloat(elAvgPrice.value) || 0;
   const shares = parseFloat(elSharesHeld.value) || 0;
-  const customCashVal = elCashLeft.value.trim();
 
-  state = {
-    symbol,
-    splitCount: N,
-    totalCapital: capital,
-    avgPrice,
-    sharesHeld: shares,
-    customCash: customCashVal
-  };
-  saveState();
+  // Update state from inputs (but preserve explicitT and explicitCash)
+  state.symbol = symbol;
+  state.splitCount = N;
+  state.totalCapital = capital;
+  state.avgPrice = avgPrice;
+  state.sharesHeld = shares;
 
-  // If 0 shares held (T=0 First Day of New Cycle)
   const isFirstDayNewCycle = (shares === 0);
 
-  const spentAmount = shares * avgPrice;
-  let cashRemaining = capital - spentAmount;
-  
-  if (customCashVal !== '') {
-    const parsedCustomCash = parseFloat(customCashVal);
-    if (!isNaN(parsedCustomCash)) {
-      cashRemaining = parsedCustomCash;
-    }
+  // --- T Calculation ---
+  let T;
+  if (state.explicitT !== null && state.explicitT !== undefined) {
+    // Use explicitly tracked T (set by 1-click buttons)
+    T = state.explicitT;
+  } else {
+    // Reverse-calculate T (initial setup or manual editing)
+    const spentAmount = shares * avgPrice;
+    T = capital > 0 ? (spentAmount / capital) * N : 0;
   }
-
-  if (cashRemaining < 0) cashRemaining = 0;
-
-  // T Calculation
-  let T = 0;
-  if (!isFirstDayNewCycle) {
-    T = (spentAmount / capital) * N;
-    if (customCashVal !== '') {
-      T = ((capital - cashRemaining) / capital) * N;
-    }
-  }
-
   if (T < 0) T = 0;
   if (T > N) T = N;
+  if (isFirstDayNewCycle) T = 0;
+
+  // --- Cash Calculation ---
+  let cashRemaining;
+  if (state.explicitCash !== null && state.explicitCash !== undefined) {
+    // Use explicitly tracked cash (set by 1-click buttons or user input)
+    cashRemaining = state.explicitCash;
+  } else {
+    // Auto-calculate (only accurate when no quarter sells have occurred)
+    cashRemaining = capital - (shares * avgPrice);
+  }
+  if (cashRemaining < 0) cashRemaining = 0;
 
   const halfN = N / 2;
   const isReverseMode = T >= (N - 1);
   const isSecondHalf = T >= halfN;
 
-  // Star % Calculation
+  // --- Star % ---
   let baseConst = 20;
   let coef = 40 / N;
-
   if (symbol === 'TQQQ') {
     baseConst = 15;
     coef = 30 / N;
@@ -179,7 +164,7 @@ function calculate() {
   const starPct = baseConst - (coef * T);
   const starPoint = avgPrice * (1 + (starPct / 100));
 
-  // 1-Period Buy Budget
+  // --- 1회 매수금 ---
   let buyBudget = (N - T) > 0 ? (cashRemaining / (N - T)) : 0;
   if (buyBudget < 0) buyBudget = 0;
 
@@ -194,20 +179,20 @@ function calculate() {
   const targetSellPrice = avgPrice * targetProfitPct;
   const sellTQty = Math.max(0, shares - sellQQty);
 
-  // Cache
+  // Cache for button actions
   currentCalcResult = {
-    buyQty,
-    sellQQty,
-    sellTQty,
-    locBuyPrice,
-    locSellQPrice,
-    targetSellPrice,
-    buyTotalCost
+    T, cashRemaining, buyQty, sellQQty, sellTQty,
+    locBuyPrice, locSellQPrice, targetSellPrice, buyTotalCost,
+    baseConst, coef, N, avgPrice, shares, capital
   };
 
-  // UI Updates
+  saveState();
+
+  // ====== UI UPDATES ======
+
+  // Mode badge
   if (isFirstDayNewCycle) {
-    elModeBadge.innerText = '✨ 새 사이클 시작 (T=0)';
+    elModeBadge.innerText = '✨ 새 사이클 (T=0)';
     elModeBadge.className = 'badge';
   } else if (isReverseMode) {
     elModeBadge.innerText = '🔴 리버스모드';
@@ -217,9 +202,10 @@ function calculate() {
     elModeBadge.className = 'badge';
   }
 
+  // T display
   elDispTVal.innerText = T.toFixed(2);
   if (isFirstDayNewCycle) {
-    elDispPhase.innerText = `1일차 큰수 매수 대기`;
+    elDispPhase.innerText = '1일차 큰수 매수 대기';
   } else if (isReverseMode) {
     elDispPhase.innerText = `소진 (T > ${(N - 1).toFixed(0)})`;
   } else if (isSecondHalf) {
@@ -228,137 +214,186 @@ function calculate() {
     elDispPhase.innerText = `전반전 (T < ${halfN.toFixed(0)})`;
   }
 
+  // Buy budget
   elDispBuyBudget.innerText = `$${buyBudget.toFixed(2)}`;
-  if (buyQty >= 1) {
-    elDispBuyShares.innerText = `약 ${buyQty}주 매수 가능`;
-  } else {
-    elDispBuyShares.innerText = `0주 (예산 부족)`;
-  }
+  elDispBuyShares.innerText = buyQty >= 1 ? `약 ${buyQty}주 매수 가능` : '0주 (예산 부족)';
 
+  // Star %
   elDispStarPct.innerText = `${starPct >= 0 ? '+' : ''}${starPct.toFixed(2)}%`;
-  if (starPct < 0) {
-    elDispStarStatus.innerText = '별지점 < 평단가';
-  } else if (starPct === 0) {
-    elDispStarStatus.innerText = '별지점 = 평단가';
-  } else {
-    elDispStarStatus.innerText = '별지점 > 평단가';
-  }
+  elDispStarStatus.innerText = starPct < 0 ? '별지점 < 평단가' : starPct === 0 ? '별지점 = 평단가' : '별지점 > 평단가';
 
+  // Warning
   if (buyQty === 0 && buyBudget > 0 && !isFirstDayNewCycle) {
     elWarningBanner.style.display = 'flex';
-    elWarningText.innerHTML = `⚠️ 1회 매수 예산(<strong>$${buyBudget.toFixed(2)}</strong>)이 LOC 매수가(<strong>$${locBuyPrice.toFixed(2)}</strong>)보다 작아서 <strong>0주</strong> 매수 체결됩니다.<br/>💡 추천: 20분할 전환 또는 원금을 늘리는 것을 고려해보세요.`;
+    elWarningText.innerHTML = `⚠️ 1회 매수 예산(<strong>$${buyBudget.toFixed(2)}</strong>)이 LOC 매수가(<strong>$${locBuyPrice.toFixed(2)}</strong>)보다 작아서 <strong>0주</strong> 매수됩니다.<br/>💡 20분할 전환 또는 원금 증액을 고려해보세요.`;
   } else {
     elWarningBanner.style.display = 'none';
   }
 
-  // Ticket Adjustments for Day 1 (T=0) vs Normal
+  // Order Ticket
   if (isFirstDayNewCycle) {
     elTicketBuyBadge.innerText = '📥 1일차 큰수매수';
-    // Big number buy: 15% above current price to ensure execution
-    const bigNumPrice = avgPrice * 1.12;
-    const firstDayQty = Math.floor(buyBudget / avgPrice);
-    
-    elTicketBuyPrice.innerText = `$${bigNumPrice.toFixed(2)}`;
+    const bigNumPrice = avgPrice > 0 ? avgPrice * 1.12 : 0;
+    const firstDayBudget = capital / N;
+    const firstDayQty = avgPrice > 0 ? Math.floor(firstDayBudget / avgPrice) : 0;
+    elTicketBuyPrice.innerText = avgPrice > 0 ? `$${bigNumPrice.toFixed(2)}` : '평단가 미입력';
     elTicketBuySub.innerText = '전일종가 +12% (큰수매수)';
     elTicketBuyQty.innerText = `${firstDayQty}주`;
-    elTicketBuyCost.innerText = `$${(firstDayQty * avgPrice).toFixed(2)}`;
-
+    elTicketBuyCost.innerText = `$${(firstDayQty * (avgPrice || 0)).toFixed(2)}`;
     elTicketSellQPrice.innerText = '-';
-    elTicketSellQQty.innerText = '0주 (보유없음)';
-
+    elTicketSellQQty.innerText = '0주';
     elTicketSellTPrice.innerText = '-';
-    elTicketSellTQty.innerText = '0주 (보유없음)';
+    elTicketSellTQty.innerText = '0주';
   } else {
     elTicketBuyBadge.innerText = '📥 LOC 매수';
     elTicketBuyPrice.innerText = `$${locBuyPrice.toFixed(2)}`;
     elTicketBuySub.innerText = '이하 체결';
     elTicketBuyQty.innerText = `${buyQty}주`;
     elTicketBuyCost.innerText = `$${buyTotalCost.toFixed(2)}`;
-
     elTicketSellQPrice.innerText = `$${locSellQPrice.toFixed(2)}`;
     elTicketSellQQty.innerText = `${sellQQty}주`;
-
     elTicketSellTPrice.innerText = `$${targetSellPrice.toFixed(2)}`;
     elTicketSellTQty.innerText = `${sellTQty}주`;
   }
 
   // Scenarios
   const nextBuyT = Math.min(N, T + 1);
-  const nextBuyQty = shares + buyQty;
   const nextBuyCash = Math.max(0, cashRemaining - buyTotalCost);
-
   elScenBuyT.innerText = nextBuyT.toFixed(2);
-  elScenBuyQty.innerText = `${nextBuyQty}주`;
+  elScenBuyQty.innerText = `${shares + buyQty}주`;
   elScenBuyCash.innerText = `$${nextBuyCash.toFixed(0)}`;
 
   const nextSellT = T * 0.75;
-  const nextSellQty = Math.max(0, shares - sellQQty);
-  const recoveredCash = sellQQty * locSellQPrice;
-
+  const sellProceeds = sellQQty * locSellQPrice;
   elScenSellT.innerText = nextSellT.toFixed(2);
-  elScenSellQty.innerText = `${nextSellQty}주`;
-  elScenSellCash.innerText = `+$${recoveredCash.toFixed(0)} 회복`;
+  elScenSellQty.innerText = `${Math.max(0, shares - sellQQty)}주`;
+  elScenSellCash.innerText = `+$${sellProceeds.toFixed(0)} 회복`;
 }
 
-// 1-Click Execution Apply Handlers
+// ====== 1-CLICK EXECUTION HANDLERS ======
+
+// 📥 매수 체결 반영
 function applyBuyExecution() {
-  if (currentCalcResult.buyQty <= 0 && parseFloat(elSharesHeld.value) > 0) {
+  const r = currentCalcResult;
+  if (r.shares === 0) {
+    // First day big buy
+    const firstDayBudget = r.capital / r.N;
+    const firstDayQty = r.avgPrice > 0 ? Math.floor(firstDayBudget / r.avgPrice) : 0;
+    if (firstDayQty <= 0) {
+      showToast('평단가를 먼저 입력해주세요 (오늘 체결된 가격).');
+      return;
+    }
+    const cost = firstDayQty * r.avgPrice;
+    const newShares = firstDayQty;
+    const newCash = r.capital - cost;
+
+    state.explicitT = 1;
+    state.explicitCash = newCash;
+    state.sharesHeld = newShares;
+
+    elSharesHeld.value = newShares;
+    elCashLeft.value = newCash.toFixed(2);
+    calculate();
+    showToast(`📥 1일차 큰수매수 완료! ${newShares}주 매수, T=1, 잔금=$${newCash.toFixed(0)}`);
+    return;
+  }
+
+  if (r.buyQty <= 0) {
     showToast('매수 가능한 수량이 0주입니다.');
     return;
   }
-  const oldShares = parseFloat(elSharesHeld.value) || 0;
-  const addShares = (oldShares === 0) ? Math.floor((parseFloat(elTotalCapital.value)/parseFloat(elSplitCount.value)) / parseFloat(elAvgPrice.value)) : currentCalcResult.buyQty;
-  const newShares = oldShares + Math.max(1, addShares);
-  
+
+  const newShares = r.shares + r.buyQty;
+  const newCash = Math.max(0, r.cashRemaining - r.buyTotalCost);
+  const newT = Math.min(r.N, r.T + 1);
+
+  // Update new avg price: (old_shares * old_avg + new_shares * buy_price) / total_shares
+  const newAvgPrice = ((r.shares * r.avgPrice) + (r.buyQty * r.locBuyPrice)) / newShares;
+
+  state.explicitT = newT;
+  state.explicitCash = newCash;
+  state.sharesHeld = newShares;
+  state.avgPrice = parseFloat(newAvgPrice.toFixed(4));
+
   elSharesHeld.value = newShares;
+  elAvgPrice.value = newAvgPrice.toFixed(4);
+  elCashLeft.value = newCash.toFixed(2);
   calculate();
-  showToast(`📥 매수 체결 완료! 보유수량: ${newShares}주로 갱신되었습니다.`);
+  showToast(`📥 매수 체결! ${newShares}주, T=${newT.toFixed(2)}, 잔금=$${newCash.toFixed(0)}`);
 }
 
+// 📤 쿼터매도 체결 반영
 function applySellExecution() {
-  if (currentCalcResult.sellQQty <= 0) {
+  const r = currentCalcResult;
+  if (r.sellQQty <= 0) {
     showToast('매도할 쿼터 수량이 없습니다.');
     return;
   }
-  const oldShares = parseFloat(elSharesHeld.value) || 0;
-  const newShares = Math.max(0, oldShares - currentCalcResult.sellQQty);
-  
+
+  const newShares = Math.max(0, r.shares - r.sellQQty);
+  // 쿼터매도 대금 = 실제 별지점(LOC매도가)에서 체결
+  const sellProceeds = r.sellQQty * r.locSellQPrice;
+  const newCash = r.cashRemaining + sellProceeds;
+  const newT = r.T * 0.75;
+
+  // 손실 계산 (정보 표시용)
+  const costBasis = r.sellQQty * r.avgPrice;
+  const realizedPL = sellProceeds - costBasis;
+
+  // 평단가는 변하지 않음 (매도 시 남은 주식의 평단가는 그대로)
+  state.explicitT = newT;
+  state.explicitCash = newCash;
+  state.sharesHeld = newShares;
+
   elSharesHeld.value = newShares;
+  elCashLeft.value = newCash.toFixed(2);
   calculate();
-  showToast(`📤 쿼터매도 완료! 보유수량: ${newShares}주로 갱신되었습니다.`);
+
+  const plText = realizedPL >= 0 ? `+$${realizedPL.toFixed(0)} 이익` : `-$${Math.abs(realizedPL).toFixed(0)} 손실`;
+  showToast(`📤 쿼터매도 완료! ${newShares}주, T=${newT.toFixed(2)}, 잔금=$${newCash.toFixed(0)} (${plText} 반영)`);
 }
 
-// Target Profit Reset Handler (+20% hit -> Compound capital & Reset T=0)
+// 🎯 지정가 익절 (사이클 종료 & 복리 리셋)
 function applyTargetSellExecution() {
-  const shares = parseFloat(elSharesHeld.value) || 0;
-  if (shares <= 0) {
+  const r = currentCalcResult;
+  if (r.shares <= 0) {
     showToast('현재 보유 주식이 없습니다.');
     return;
   }
 
-  const oldCapital = parseFloat(elTotalCapital.value) || 6000;
-  const avgPrice = parseFloat(elAvgPrice.value) || 194.6026;
-  const symbol = elSymbol.value;
-  const profitPct = (symbol === 'TQQQ') ? 1.15 : 1.20;
-  
-  // Realized Total Revenue = shares * targetSellPrice
-  const totalRevenue = shares * (avgPrice * profitPct);
-  // Unspent cash
-  const unspentCash = Math.max(0, oldCapital - (shares * avgPrice));
-  // Total Net Cash after target sell
-  const newTotalCapital = Math.round(unspentCash + totalRevenue);
+  // 정확한 정산: 실제 잔금 + (보유수량 × 익절가)
+  const sellRevenue = r.shares * r.targetSellPrice;
+  const newTotalCapital = Math.round(r.cashRemaining + sellRevenue);
+  const profit = newTotalCapital - r.capital;
+  const profitPct = ((profit / r.capital) * 100).toFixed(1);
 
-  if (confirm(`🎉 지정가 익절 체결을 축하합니다!\n\n- 회복된 총 자본: $${newTotalCapital.toLocaleString()} (수익금 포함)\n- T 회차: 0 회차로 리셋\n- 보유수량: 0주로 리셋\n\n새 자본($${newTotalCapital.toLocaleString()})으로 새 사이클을 시작하시겠습니까?`)) {
+  if (confirm(
+    `🎉 지정가 익절 체결!\n\n` +
+    `매도 수익: ${r.shares}주 × $${r.targetSellPrice.toFixed(2)} = $${sellRevenue.toFixed(0)}\n` +
+    `기존 잔금: $${r.cashRemaining.toFixed(0)}\n` +
+    `────────────────\n` +
+    `새 원금: $${newTotalCapital.toLocaleString()} (${profit >= 0 ? '+' : ''}$${profit.toLocaleString()}, ${profit >= 0 ? '+' : ''}${profitPct}%)\n\n` +
+    `이 금액으로 새 사이클(T=0)을 시작하시겠습니까?`
+  )) {
+    state.totalCapital = newTotalCapital;
+    state.sharesHeld = 0;
+    state.avgPrice = 0;
+    state.explicitT = 0;
+    state.explicitCash = newTotalCapital;
+
     elTotalCapital.value = newTotalCapital;
     elSharesHeld.value = 0;
+    elAvgPrice.value = '';
     elCashLeft.value = '';
-    
+    state.explicitCash = null;
+
     calculate();
-    showToast(`🎉 축하합니다! 원금이 $${newTotalCapital.toLocaleString()}로 합산되어 T=0 새 사이클 주문표로 갱신되었습니다!`);
+    showToast(`🎉 축하합니다! 원금 $${newTotalCapital.toLocaleString()} (${profit >= 0 ? '+' : ''}${profitPct}%) 새 사이클 시작!`);
   }
 }
 
-// Copy to Clipboard
+// ====== UTILITIES ======
+
 function copyText(text) {
   if (!text || text === '-') return;
   const cleanText = text.replace('$', '').trim();
@@ -390,7 +425,5 @@ function showToast(msg) {
   if (!toast) return;
   toast.innerText = msg;
   toast.classList.add('show');
-  setTimeout(() => {
-    toast.classList.remove('show');
-  }, 2800);
+  setTimeout(() => { toast.classList.remove('show'); }, 3000);
 }
