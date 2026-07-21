@@ -135,11 +135,11 @@
         <div class="ticket-list">
           <!-- 1. LOC 매수 -->
           <div class="ticket-item order-buy">
-            <div class="order-badge">📥 LOC 매수</div>
+            <div class="order-badge" id="ticket-buy-badge">📥 LOC 매수</div>
             <div class="order-info">
               <div class="order-price-row">
                 <span class="order-price" id="ticket-buy-price">$185.54</span>
-                <span class="price-sub">이하 체결</span>
+                <span class="price-sub" id="ticket-buy-sub">이하 체결</span>
               </div>
               <div class="order-qty-row">
                 <span class="order-qty" id="ticket-buy-qty">1주</span>
@@ -186,36 +186,41 @@
       <!-- Next Day Scenario Preview & 1-Click Apply Section -->
       <section class="card scenario-card">
         <div class="card-title-bar">
-          <h2>⚡ 오늘 장 마감 후 1-클릭 체결 반영</h2>
+          <h2>⚡ 장 마감 후 1-클릭 체결 반영 / 리셋</h2>
         </div>
-        <p class="section-desc">장이 끝나고 주문이 체결되었으면 버튼 하나만 누르세요! 내일 포지션(T, 수량, 잔금)이 자동 업데이트됩니다.</p>
+        <p class="section-desc">장이 끝나고 체결된 주문 버튼을 클릭하세요! 내일 포지션과 주문표가 자동 갱신됩니다.</p>
         
         <div class="scenario-grid">
           <div class="scenario-box buy-scenario">
-            <div class="scenario-title">📉 매수 체결 시 (종가 ≤ LOC매수가)</div>
+            <div class="scenario-title">📉 매수 체결 시</div>
             <ul class="scenario-details">
               <li>다음 회차 T: <strong id="scen-buy-t">19.49</strong></li>
               <li>예상 보유 수량: <strong id="scen-buy-qty">20주</strong></li>
               <li>예상 잔금: <strong id="scen-buy-cash">$2,117</strong></li>
-              <li>다음 별 퍼센트: <strong id="scen-buy-star">-5.99%</strong></li>
             </ul>
             <button type="button" class="btn-apply btn-apply-buy" onclick="applyBuyExecution()">
-              📥 매수 체결 반영하기
+              📥 매수 체결 반영
             </button>
           </div>
 
           <div class="scenario-box sell-scenario">
-            <div class="scenario-title">📈 쿼터매도 체결 시 (종가 ≥ LOC매도가)</div>
+            <div class="scenario-title">📈 쿼터매도 체결 시</div>
             <ul class="scenario-details">
               <li>다음 회차 T: <strong id="scen-sell-t">13.87</strong> <span class="badge-mini">전반전 복귀!</span></li>
               <li>예상 보유 수량: <strong id="scen-sell-qty">15주</strong></li>
               <li>예상 회복 현금: <strong id="scen-sell-cash">+$742 회복</strong></li>
-              <li>다음 별 퍼센트: <strong id="scen-sell-star">+1.51%</strong></li>
             </ul>
             <button type="button" class="btn-apply btn-apply-sell" onclick="applySellExecution()">
-              📤 쿼터매도 체결 반영하기
+              📤 쿼터매도 체결 반영
             </button>
           </div>
+        </div>
+
+        <!-- Target Profit Sell Reset -->
+        <div class="target-reset-wrapper">
+          <button type="button" class="btn-apply btn-apply-target" onclick="applyTargetSellExecution()">
+            🎯 +20% 지정가 익절 체결 (수익금 원금합산 & T=0 새 사이클 시작)
+          </button>
         </div>
       </section>
 
@@ -225,11 +230,11 @@
         <div class="guide-list">
           <div class="guide-item">
             <span class="guide-bullet">1</span>
-            <p><strong>주문 입력 시간</strong>: 프리장 시작 후(한국시간 17시~18시 이후) 증권사 앱에서 3가지 주문을 걸어둡니다.</p>
+            <p><strong>새 사이클 시작(T=0)</strong>: 익절 성공 후 버튼을 누르면 수익금이 복리로 원금에 자동 합산되고 1일차 <strong>큰수 매수</strong> 주문표로 자동 변경됩니다.</p>
           </div>
           <div class="guide-item">
             <span class="guide-bullet">2</span>
-            <p><strong>자동 갱신</strong>: 장 마감 후 매수/쿼터매도가 체결되면 위의 <code>[체결 반영하기]</code> 버튼을 누르면 1초 만에 수량과 T가 자동 갱신됩니다.</p>
+            <p><strong>매수가 겹침 방지</strong>: LOC 매수가 = 별지점 − $0.01로 자동 적용됩니다.</p>
           </div>
           <div class="guide-item">
             <span class="guide-bullet">3</span>
