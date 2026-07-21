@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>무한매수법 V4.0 계산기 & 트래커</title>
+  <meta name="description" content="SOXL / TQQQ 무한매수법 V4.0 오늘의 매수/매도 LOC 주문 계산기" />
+  
+  <!-- Modern Typography (Inter & Outfit) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  
+  <link rel="stylesheet" href="src/style.css" />
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-icon">⚡</span>
+        <div>
+          <h1 class="brand-title">무한매수법 V4.0</h1>
+          <p class="brand-subtitle">오늘의 주문 티켓 도구</p>
+        </div>
+      </div>
+      <div class="header-status">
+        <span class="badge" id="mode-badge">일반모드</span>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Input Card -->
+      <section class="card input-card">
+        <div class="card-title-bar">
+          <h2>📊 포지션 정보 입력</h2>
+          <button type="button" class="btn-reset" onclick="resetDefaults()" title="기본값 복원">초기화</button>
+        </div>
+
+        <form id="calc-form" onsubmit="event.preventDefault(); calculate();">
+          <div class="form-grid">
+            <!-- 종목 선택 -->
+            <div class="form-group">
+              <label for="symbol">종목</label>
+              <select id="symbol" onchange="calculate()">
+                <option value="SOXL" selected>SOXL (반도체 3X)</option>
+                <option value="TQQQ">TQQQ (나스닥 3X)</option>
+              </select>
+            </div>
+
+            <!-- 분할 수 -->
+            <div class="form-group">
+              <label for="split-count">분할 수</label>
+              <select id="split-count" onchange="calculate()">
+                <option value="20">20 분할</option>
+                <option value="30" selected>30 분할 (사용자 설정)</option>
+                <option value="40">40 분할</option>
+              </select>
+            </div>
+
+            <!-- 원금 -->
+            <div class="form-group">
+              <label for="total-capital">원금자본 ($)</label>
+              <div class="input-wrapper">
+                <span class="prefix">$</span>
+                <input type="number" id="total-capital" value="6000" step="100" min="100" oninput="calculate()" placeholder="6000" />
+              </div>
+            </div>
+
+            <!-- 현재 평단가 -->
+            <div class="form-group">
+              <label for="avg-price">현재 평단가 ($)</label>
+              <div class="input-wrapper">
+                <span class="prefix">$</span>
+                <input type="number" id="avg-price" value="194.6026" step="0.0001" min="0.01" oninput="calculate()" placeholder="194.6026" />
+              </div>
+            </div>
+
+            <!-- 보유 수량 -->
+            <div class="form-group">
+              <label for="shares-held">보유 수량 (주)</label>
+              <div class="input-wrapper">
+                <input type="number" id="shares-held" value="19" step="1" min="0" oninput="calculate()" placeholder="19" />
+                <span class="suffix">주</span>
+              </div>
+            </div>
+
+            <!-- 잔금 직접 입력 (선택) -->
+            <div class="form-group">
+              <label for="cash-left">
+                현재 잔금 ($)
+                <span class="label-sub">(선택: 자동계산 가능)</span>
+              </label>
+              <div class="input-wrapper">
+                <span class="prefix">$</span>
+                <input type="number" id="cash-left" value="" step="1" min="0" oninput="onCashInput()" placeholder="자동 (원금 - 사용액)" />
+              </div>
+            </div>
+          </div>
+        </form>
+      </section>
+
+      <!-- Key Metrics Overview -->
+      <section class="metrics-row">
+        <div class="metric-box">
+          <span class="metric-label">현재 T 회차</span>
+          <span class="metric-val" id="disp-t-val">18.49</span>
+          <span class="metric-sub" id="disp-phase">후반전 (T > 15)</span>
+        </div>
+        <div class="metric-box">
+          <span class="metric-label">1회 매수 예산</span>
+          <span class="metric-val" id="disp-buy-budget">$200.00</span>
+          <span class="metric-sub" id="disp-buy-shares">약 1주 매수 가능</span>
+        </div>
+        <div class="metric-box">
+          <span class="metric-label">별 퍼센트 (☆%)</span>
+          <span class="metric-val" id="disp-star-pct">-4.65%</span>
+          <span class="metric-sub" id="disp-star-status">별지점 &lt; 평단가</span>
+        </div>
+      </section>
+
+      <!-- Smart Warning Banner -->
+      <div id="warning-banner" class="warning-banner" style="display:none;">
+        <span class="warning-icon">⚠️</span>
+        <div id="warning-text">1회 매수예산($200)이 주가 수준과 비슷하여 1주 미만 매수가 발생할 수 있습니다.</div>
+      </div>
+
+      <!-- Today's Order Ticket (Main Feature) -->
+      <section class="card ticket-card">
+        <div class="ticket-header">
+          <h2>🎯 오늘 증권사에 걸어둘 주문표</h2>
+          <button type="button" class="btn-copy-all" onclick="copyAllOrders()">전체 주문 복사 📋</button>
+        </div>
+
+        <div class="ticket-list">
+          <!-- 1. LOC 매수 -->
+          <div class="ticket-item order-buy">
+            <div class="order-badge">📥 LOC 매수</div>
+            <div class="order-info">
+              <div class="order-price-row">
+                <span class="order-price" id="ticket-buy-price">$185.54</span>
+                <span class="price-sub">이하 체결</span>
+              </div>
+              <div class="order-qty-row">
+                <span class="order-qty" id="ticket-buy-qty">1주</span>
+                <span class="qty-sub">(약 <span id="ticket-buy-cost">$185.54</span> 소요)</span>
+              </div>
+            </div>
+            <button type="button" class="btn-copy-item" onclick="copyText(document.getElementById('ticket-buy-price').innerText)">가격 복사</button>
+          </div>
+
+          <!-- 2. LOC 쿼터 매도 -->
+          <div class="ticket-item order-sell-quarter">
+            <div class="order-badge">📤 LOC 쿼터매도</div>
+            <div class="order-info">
+              <div class="order-price-row">
+                <span class="order-price" id="ticket-sell-q-price">$185.55</span>
+                <span class="price-sub">이상 체결</span>
+              </div>
+              <div class="order-qty-row">
+                <span class="order-qty" id="ticket-sell-q-qty">4주</span>
+                <span class="qty-sub">(전체 19주의 1/4)</span>
+              </div>
+            </div>
+            <button type="button" class="btn-copy-item" onclick="copyText(document.getElementById('ticket-sell-q-price').innerText)">가격 복사</button>
+          </div>
+
+          <!-- 3. 지정가 목표 매도 (+20%) -->
+          <div class="ticket-item order-sell-target">
+            <div class="order-badge">🎯 지정가 매도 (+20%)</div>
+            <div class="order-info">
+              <div class="order-price-row">
+                <span class="order-price" id="ticket-sell-t-price">$233.52</span>
+                <span class="price-sub">목표가 도달 시</span>
+              </div>
+              <div class="order-qty-row">
+                <span class="order-qty" id="ticket-sell-t-qty">15주</span>
+                <span class="qty-sub">(나머지 3/4)</span>
+              </div>
+            </div>
+            <button type="button" class="btn-copy-item" onclick="copyText(document.getElementById('ticket-sell-t-price').innerText)">가격 복사</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Next Day Scenario Preview -->
+      <section class="card scenario-card">
+        <div class="card-title-bar">
+          <h2>🔮 오늘 체결 시 내일 변화 예측</h2>
+        </div>
+        <div class="scenario-grid">
+          <div class="scenario-box buy-scenario">
+            <div class="scenario-title">📉 매수 체결 시 (종가 ≤ LOC매수가)</div>
+            <ul class="scenario-details">
+              <li>다음 회차 T: <strong id="scen-buy-t">19.49</strong></li>
+              <li>예상 보유 수량: <strong id="scen-buy-qty">20주</strong></li>
+              <li>예상 잔금: <strong id="scen-buy-cash">$2,117</strong></li>
+              <li>다음 별 퍼센트: <strong id="scen-buy-star">-5.99%</strong></li>
+            </ul>
+          </div>
+          <div class="scenario-box sell-scenario">
+            <div class="scenario-title">📈 쿼터매도 체결 시 (종가 ≥ LOC매도가)</div>
+            <ul class="scenario-details">
+              <li>다음 회차 T: <strong id="scen-sell-t">13.87</strong> <span class="badge-mini">전반전 복귀!</span></li>
+              <li>예상 보유 수량: <strong id="scen-sell-qty">15주</strong></li>
+              <li>예상 회복 현금: <strong id="scen-sell-cash">+$742 회복</strong></li>
+              <li>다음 별 퍼센트: <strong id="scen-sell-star">+1.51%</strong></li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- Strategy Guide Quick Reference -->
+      <section class="card guide-card">
+        <h3>💡 무한매수법 V4.0 핵심 가이드</h3>
+        <div class="guide-list">
+          <div class="guide-item">
+            <span class="guide-bullet">1</span>
+            <p><strong>주문 입력 시간</strong>: 프리장 시작 후(한국시간 17시~18시 이후) 증권사 앱에서 3가지 주문을 걸어둡니다.</p>
+          </div>
+          <div class="guide-item">
+            <span class="guide-bullet">2</span>
+            <p><strong>매수가 겹침 방지</strong>: LOC 매수가는 별지점보다 $0.01 낮게 설정되어 동시 체결 꼬임을 방지합니다.</p>
+          </div>
+          <div class="guide-item">
+            <span class="guide-bullet">3</span>
+            <p><strong>30분할 공식</strong>: 별 퍼센트(☆%) = <code>(20 - 4/3 × T)%</code> 적용됩니다.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast">클립보드에 복사되었습니다!</div>
+
+    <footer class="app-footer">
+      <p>본 앱의 모든 데이터는 브라우저에 안전하게 저장됩니다. | 무한매수법 방법론 저작권: 라오어</p>
+    </footer>
+  </div>
+
+  <script src="src/main.js"></script>
+</body>
+</html>

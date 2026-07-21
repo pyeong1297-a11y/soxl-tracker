@@ -1,0 +1,12 @@
+{
+  "name": "soxl-tracker",
+  "version": "1.0.0",
+  "description": "SOXL 무한매수법 V4 트래커",
+  "scripts": {
+    "dev": "wrangler pages dev . --port 8788",
+    "deploy": "wrangler pages deploy ."
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}
