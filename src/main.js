@@ -59,39 +59,46 @@ document.addEventListener('DOMContentLoaded', () => {
   initViewportFix();
 });
 
-// Mobile viewport height fix — tracks actual visible height (excluding keyboard)
+// Mobile keyboard handling — modal centered by default, moves to top when keyboard opens
 function initViewportFix() {
-  function updateVh() {
-    const vh = (window.visualViewport ? window.visualViewport.height : window.innerHeight) * 0.01;
-    document.documentElement.style.setProperty('--vh', vh + 'px');
+  const modal = document.getElementById('custom-modal');
+  const input1 = document.getElementById('modal-input-1');
+  const input2 = document.getElementById('modal-input-2');
 
-    // Also reposition the modal overlay to match viewport offset (for browsers that scroll the page up)
-    const modal = document.getElementById('custom-modal');
-    if (window.visualViewport && modal) {
-      modal.style.top = window.visualViewport.offsetTop + 'px';
-      modal.style.height = window.visualViewport.height + 'px';
+  // When inputs are focused → keyboard opens → move modal to top
+  function onInputFocus() {
+    modal.classList.add('keyboard-up');
+  }
+
+  // When inputs lose focus → keyboard closes → return modal to center
+  function onInputBlur() {
+    // Small delay because blur fires before the next focus when switching inputs
+    setTimeout(() => {
+      const active = document.activeElement;
+      if (active !== input1 && active !== input2) {
+        modal.classList.remove('keyboard-up');
+      }
+    }, 100);
+  }
+
+  input1.addEventListener('focus', onInputFocus);
+  input2.addEventListener('focus', onInputFocus);
+  input1.addEventListener('blur', onInputBlur);
+  input2.addEventListener('blur', onInputBlur);
+
+  // When user leaves app and comes back → close keyboard, re-center modal
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && modal.classList.contains('show')) {
+      // Blur active input to close keyboard
+      if (document.activeElement === input1 || document.activeElement === input2) {
+        document.activeElement.blur();
+      }
+      modal.classList.remove('keyboard-up');
+      // Reset any inline styles from previous viewport hacks
+      modal.style.top = '';
+      modal.style.height = '';
     }
-  }
-
-  updateVh();
-
-  if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', updateVh);
-    window.visualViewport.addEventListener('scroll', updateVh);
-  } else {
-    window.addEventListener('resize', updateVh);
-  }
-
-  // When modal inputs are focused, scroll them into the visible area
-  document.getElementById('modal-input-1').addEventListener('focus', scrollModalInput);
-  document.getElementById('modal-input-2').addEventListener('focus', scrollModalInput);
-}
-
-function scrollModalInput(e) {
-  // Small delay to wait for the keyboard to finish opening
-  setTimeout(() => {
-    e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, 300);
+  });
 }
 
 function loadSavedState() {
