@@ -9,7 +9,8 @@ const defaultState = {
   avgPrice: 194.6026,
   sharesHeld: 19,
   explicitT: null,
-  explicitCash: null
+  explicitCash: null,
+  pendingModal: null
 };
 
 let state = { ...defaultState };
@@ -54,6 +55,7 @@ const elScenSellCash = document.getElementById('scen-sell-cash');
 document.addEventListener('DOMContentLoaded', () => {
   loadSavedState();
   calculate();
+  restorePendingModal();
 });
 
 function loadSavedState() {
@@ -252,33 +254,161 @@ function calculate() {
   elScenSellCash.innerText = `+$${sellProceeds.toFixed(0)} 회복`;
 }
 
-// ====== 1-CLICK EXECUTION HANDLERS (WITH ACTUAL EXECUTED PRICE PROMPT) ======
+// ====== 1-CLICK EXECUTION HANDLERS (WITH CUSTOM MODAL DIALOG) ======
 
-// 📥 매수 체결 반영 (실제 체결가/종가 입력 지원)
+// Custom Modal Controls
+function openModal(type, isRestoring = false) {
+  const r = currentCalcResult;
+  const modal = document.getElementById('custom-modal');
+  const title = document.getElementById('modal-title');
+  const desc = document.getElementById('modal-desc');
+  const label1 = document.getElementById('modal-label-1');
+  const input1 = document.getElementById('modal-input-1');
+  const label2 = document.getElementById('modal-label-2');
+  const input2 = document.getElementById('modal-input-2');
+  const group2 = document.getElementById('modal-input-group-2');
+
+  if (!isRestoring) {
+    state.pendingModal = {
+      type: type,
+      input1: '',
+      input2: ''
+    };
+    saveState();
+  }
+
+  // Reset fields
+  input1.value = '';
+  input2.value = '';
+  group2.style.display = 'none';
+
+  if (type === 'buy') {
+    title.innerText = '📥 매수 체결 반영';
+    if (r.shares === 0) {
+      const firstDayBudget = r.capital / r.N;
+      const orderedQty = r.avgPrice > 0 ? Math.floor(firstDayBudget / r.avgPrice) : 0;
+      desc.innerText = `[1일차 큰수매수 체결]\n주문 수량: ${orderedQty}주 (주문표 기준)\n오늘 실제 체결가(종가)를 입력하세요.`;
+      const defaultPrice = r.avgPrice > 0 ? r.avgPrice : 190.00;
+      input1.value = defaultPrice.toFixed(2);
+    } else {
+      desc.innerText = `오늘 실제 체결가(종가)를 입력하세요.\n(LOC 매수 한도가 $${r.locBuyPrice.toFixed(2)} 이하였으며, 종가가 더 낮았다면 그 가격을 입력하세요.)`;
+      input1.value = r.locBuyPrice.toFixed(2);
+    }
+    label1.innerText = '실제 체결가 ($)';
+  } 
+  else if (type === 'sell') {
+    title.innerText = '📤 쿼터매도 체결 반영';
+    desc.innerText = `오늘 실제 체결가(종가)를 입력하세요.\n(LOC 쿼터매도 조건은 $${r.locSellQPrice.toFixed(2)} 이상이었으며, 종가가 더 높았다면 그 가격을 입력하세요.)`;
+    label1.innerText = '실제 체결가 ($)';
+    input1.value = r.locSellQPrice.toFixed(2);
+  }
+  else if (type === 'target') {
+    title.innerText = '🎯 지정가 익절 체결 반영';
+    desc.innerText = `지정가 매도(+20%) 및 LOC 쿼터매도 체결 결과를 입력하세요.`;
+    
+    label1.innerText = `지정가 매도 체결가 ($) [수량: ${r.sellTQty}주]`;
+    input1.value = r.targetSellPrice.toFixed(2);
+    
+    group2.style.display = 'flex';
+    label2.innerText = `LOC 쿼터매도 체결가 ($) [수량: ${r.sellQQty}주] (미체결 시 0)`;
+    input2.value = '0';
+  }
+  else if (type === 'both') {
+    title.innerText = '🔄 매수 + 쿼터매도 동시 체결';
+    desc.innerText = `오늘 실제 종가(=체결가)를 입력하세요.\n\n처리 순서: ① 쿼터매도 ${r.sellQQty}주 → ② 매수 ${r.buyQty}주\n(원래 보유수량 ${r.shares}주 기준 1/4 = ${r.sellQQty}주 매도 후 매수)`;
+    label1.innerText = '실제 종가 ($)';
+    input1.value = r.locSellQPrice.toFixed(2);
+  }
+
+  if (!isRestoring) {
+    state.pendingModal.input1 = input1.value;
+    state.pendingModal.input2 = input2.value;
+    saveState();
+  }
+
+  modal.classList.add('show');
+}
+
+function closeModal() {
+  const modal = document.getElementById('custom-modal');
+  modal.classList.remove('show');
+  state.pendingModal = null;
+  saveState();
+}
+
+function saveModalInputs() {
+  if (state.pendingModal) {
+    state.pendingModal.input1 = document.getElementById('modal-input-1').value;
+    state.pendingModal.input2 = document.getElementById('modal-input-2').value;
+    saveState();
+  }
+}
+
+function restorePendingModal() {
+  if (!state.pendingModal || !state.pendingModal.type) return;
+  
+  const type = state.pendingModal.type;
+  const savedInput1 = state.pendingModal.input1;
+  const savedInput2 = state.pendingModal.input2;
+
+  openModal(type, true);
+
+  if (savedInput1 !== undefined && savedInput1 !== '') {
+    document.getElementById('modal-input-1').value = savedInput1;
+  }
+  if (savedInput2 !== undefined && savedInput2 !== '') {
+    document.getElementById('modal-input-2').value = savedInput2;
+  }
+
+  state.pendingModal = {
+    type: type,
+    input1: document.getElementById('modal-input-1').value,
+    input2: document.getElementById('modal-input-2').value
+  };
+  saveState();
+}
+
+function handleModalSubmit() {
+  if (!state.pendingModal || !state.pendingModal.type) return;
+
+  const type = state.pendingModal.type;
+  const val1 = parseFloat(document.getElementById('modal-input-1').value);
+  const val2 = parseFloat(document.getElementById('modal-input-2').value);
+
+  if (type === 'buy') {
+    submitBuy(val1);
+  } else if (type === 'sell') {
+    submitSell(val1);
+  } else if (type === 'target') {
+    submitTarget(val1, val2);
+  } else if (type === 'both') {
+    submitBoth(val1);
+  }
+}
+
+// 📥 매수 체결 반영 버튼 클릭시 호출
 function applyBuyExecution() {
   const r = currentCalcResult;
+  if (r.shares > 0 && r.buyQty <= 0) {
+    showToast('매수 가능한 수량이 0주입니다.');
+    return;
+  }
+  openModal('buy');
+}
+
+function submitBuy(actualPrice) {
+  const r = currentCalcResult;
+  if (isNaN(actualPrice) || actualPrice <= 0) {
+    showToast('올바른 가격을 입력해주세요.');
+    return;
+  }
 
   if (r.shares === 0) {
-    // First day big buy — use the ORDER TICKET quantity (not recalculated from actual price)
+    // First day big buy
     const firstDayBudget = r.capital / r.N;
     const orderedQty = r.avgPrice > 0 ? Math.floor(firstDayBudget / r.avgPrice) : 0;
     if (orderedQty <= 0) {
       showToast('평단가(전일종가)를 먼저 입력해주세요.');
-      return;
-    }
-
-    const defaultPrice = r.avgPrice > 0 ? r.avgPrice : 190.00;
-    const inputStr = prompt(
-      `📥 [1일차 큰수매수 체결]\n` +
-      `주문 수량: ${orderedQty}주 (주문표 기준)\n` +
-      `오늘 실제 체결가(종가)를 입력하세요:`,
-      defaultPrice.toFixed(2)
-    );
-    if (inputStr === null) return;
-    
-    const actualPrice = parseFloat(inputStr);
-    if (isNaN(actualPrice) || actualPrice <= 0) {
-      showToast('올바른 가격을 입력해주세요.');
       return;
     }
 
@@ -293,74 +423,45 @@ function applyBuyExecution() {
     elSharesHeld.value = orderedQty;
     elAvgPrice.value = actualPrice.toFixed(4);
     elCashLeft.value = newCash.toFixed(2);
-    calculate();
+    
     showToast(`📥 1일차 매수 완료! ${orderedQty}주 ($${actualPrice.toFixed(2)}), T=1, 잔금=$${newCash.toFixed(0)}`);
-    return;
+  } else {
+    const actualTotalCost = r.buyQty * actualPrice;
+    const newShares = r.shares + r.buyQty;
+    const newCash = Math.max(0, r.cashRemaining - actualTotalCost);
+    const newT = Math.min(r.N, r.T + 1);
+
+    // New Weighted Avg Price
+    const newAvgPrice = ((r.shares * r.avgPrice) + (r.buyQty * actualPrice)) / newShares;
+
+    state.explicitT = newT;
+    state.explicitCash = newCash;
+    state.sharesHeld = newShares;
+    state.avgPrice = parseFloat(newAvgPrice.toFixed(4));
+
+    elSharesHeld.value = newShares;
+    elAvgPrice.value = newAvgPrice.toFixed(4);
+    elCashLeft.value = newCash.toFixed(2);
+
+    showToast(`📥 체결 반영! ${r.buyQty}주 매수 ($${actualPrice.toFixed(2)}), 평단가 $${newAvgPrice.toFixed(2)}, T=${newT.toFixed(2)}`);
   }
 
-  if (r.buyQty <= 0) {
-    showToast('매수 가능한 수량이 0주입니다.');
-    return;
-  }
-
-  // Ask for ACTUAL executed price (defaults to locBuyPrice)
-  const defaultPrice = r.locBuyPrice;
-  const inputStr = prompt(
-    `📥 [매수 체결 반영]\n` +
-    `오늘 실제 체결가(종가)를 입력하세요.\n` +
-    `(LOC 매수 한도가 $${r.locBuyPrice.toFixed(2)} 이하였으며, 종가가 더 낮았다면 그 가격을 입력하세요):`,
-    defaultPrice.toFixed(2)
-  );
-
-  if (inputStr === null) return; // User cancelled
-
-  const actualPrice = parseFloat(inputStr);
-  if (isNaN(actualPrice) || actualPrice <= 0) {
-    showToast('올바른 체결가를 입력해주세요.');
-    return;
-  }
-
-  const actualTotalCost = r.buyQty * actualPrice;
-  const newShares = r.shares + r.buyQty;
-  const newCash = Math.max(0, r.cashRemaining - actualTotalCost);
-  const newT = Math.min(r.N, r.T + 1);
-
-  // New Weighted Avg Price: (old_shares * old_avg + new_shares * actual_price) / total_shares
-  const newAvgPrice = ((r.shares * r.avgPrice) + (r.buyQty * actualPrice)) / newShares;
-
-  state.explicitT = newT;
-  state.explicitCash = newCash;
-  state.sharesHeld = newShares;
-  state.avgPrice = parseFloat(newAvgPrice.toFixed(4));
-
-  elSharesHeld.value = newShares;
-  elAvgPrice.value = newAvgPrice.toFixed(4);
-  elCashLeft.value = newCash.toFixed(2);
+  closeModal();
   calculate();
-
-  showToast(`📥 체결 반영! ${r.buyQty}주 매수 ($${actualPrice.toFixed(2)}), 평단가 $${newAvgPrice.toFixed(2)}, T=${newT.toFixed(2)}`);
 }
 
-// 📤 쿼터매도 체결 반영 (실제 체결가/종가 입력 지원)
+// 📤 쿼터매도 체결 반영 버튼 클릭시 호출
 function applySellExecution() {
   const r = currentCalcResult;
   if (r.sellQQty <= 0) {
     showToast('매도할 쿼터 수량이 없습니다.');
     return;
   }
+  openModal('sell');
+}
 
-  // Ask for ACTUAL executed price (defaults to locSellQPrice)
-  const defaultPrice = r.locSellQPrice;
-  const inputStr = prompt(
-    `📤 [쿼터매도 체결 반영]\n` +
-    `오늘 실제 체결가(종가)를 입력하세요.\n` +
-    `(LOC 쿼터매도 조건은 $${r.locSellQPrice.toFixed(2)} 이상이었으며, 종가가 더 높았다면 그 가격을 입력하세요):`,
-    defaultPrice.toFixed(2)
-  );
-
-  if (inputStr === null) return; // User cancelled
-
-  const actualPrice = parseFloat(inputStr);
+function submitSell(actualPrice) {
+  const r = currentCalcResult;
   if (isNaN(actualPrice) || actualPrice <= 0) {
     showToast('올바른 체결가를 입력해주세요.');
     return;
@@ -380,50 +481,35 @@ function applySellExecution() {
 
   elSharesHeld.value = newShares;
   elCashLeft.value = newCash.toFixed(2);
-  calculate();
 
   const plText = realizedPL >= 0 ? `+$${realizedPL.toFixed(0)} 이익` : `-$${Math.abs(realizedPL).toFixed(0)} 손실`;
   showToast(`📤 쿼터매도 체결 반영! ${r.sellQQty}주 매도 ($${actualPrice.toFixed(2)}), T=${newT.toFixed(2)}, 잔금 $${newCash.toFixed(0)} (${plText})`);
+
+  closeModal();
+  calculate();
 }
 
-// 🎯 지정가 익절 (지정가 배치와 LOC 쿼터매도 배치 별도 체결가 지원)
+// 🎯 지정가 익절 버튼 클릭시 호출
 function applyTargetSellExecution() {
   const r = currentCalcResult;
   if (r.shares <= 0) {
     showToast('현재 보유 주식이 없습니다.');
     return;
   }
+  openModal('target');
+}
 
-  // 지정가 매도 체결가 입력 (sellTQty 주)
-  const defaultPrice = r.targetSellPrice;
-  const inputStr1 = prompt(
-    `🎯 [+20% 지정가 익절 — Step 1/2]\n` +
-    `지정가 매도 ${r.sellTQty}주의 체결가를 입력하세요:`,
-    defaultPrice.toFixed(2)
-  );
-  if (inputStr1 === null) return;
+function submitTarget(targetPrice, quarterPrice) {
+  const r = currentCalcResult;
 
-  const targetPrice = parseFloat(inputStr1);
   if (isNaN(targetPrice) || targetPrice <= 0) {
-    showToast('올바른 가격을 입력해주세요.');
+    showToast('올바른 지정가 매도 가격을 입력해주세요.');
     return;
   }
 
-  // LOC 쿼터매도 체결 여부 확인 (sellQQty 주)
   let quarterRevenue = 0;
-  if (r.sellQQty > 0) {
-    const inputStr2 = prompt(
-      `🎯 [+20% 지정가 익절 — Step 2/2]\n` +
-      `LOC 쿼터매도 ${r.sellQQty}주도 체결되었나요?\n` +
-      `체결되었으면 종가를 입력, 미체결이면 0을 입력하세요:`,
-      targetPrice.toFixed(2)
-    );
-    if (inputStr2 === null) return;
-
-    const quarterPrice = parseFloat(inputStr2);
-    if (!isNaN(quarterPrice) && quarterPrice > 0) {
-      quarterRevenue = r.sellQQty * quarterPrice;
-    }
+  if (r.sellQQty > 0 && !isNaN(quarterPrice) && quarterPrice > 0) {
+    quarterRevenue = r.sellQQty * quarterPrice;
   }
 
   const targetRevenue = r.sellTQty * targetPrice;
@@ -442,7 +528,6 @@ function applyTargetSellExecution() {
   }
 
   if (remainingShares > 0) {
-    // 쿼터매도 미체결 → 완전 익절 아님, 부분 정산
     if (confirm(
       `⚠️ 부분 익절 정산\n\n` +
       `${detailText}\n` +
@@ -454,7 +539,6 @@ function applyTargetSellExecution() {
     )) {
       const newShares = remainingShares;
       const newCash = r.cashRemaining + targetRevenue;
-      // T 비례 감소: 매도 비율만큼
       const soldRatio = r.sellTQty / r.shares;
       const newT = r.T * (1 - soldRatio);
 
@@ -464,11 +548,12 @@ function applyTargetSellExecution() {
 
       elSharesHeld.value = newShares;
       elCashLeft.value = newCash.toFixed(2);
-      calculate();
+
       showToast(`⚠️ 부분 익절! ${r.sellTQty}주 매도, ${remainingShares}주 잔류, 잔금 $${newCash.toFixed(0)}`);
+      closeModal();
+      calculate();
     }
   } else {
-    // 전량 익절 → 새 사이클
     if (confirm(
       `🎉 지정가 익절 전량 체결!\n\n` +
       `${detailText}\n` +
@@ -489,13 +574,14 @@ function applyTargetSellExecution() {
       elCashLeft.value = '';
       state.explicitCash = null;
 
-      calculate();
       showToast(`🎉 축하합니다! 원금 $${newTotalCapital.toLocaleString()} (${profit >= 0 ? '+' : ''}${profitPct}%) 새 사이클 시작!`);
+      closeModal();
+      calculate();
     }
   }
 }
 
-// 🔄 매수 + 쿼터매도 동시 체결 반영 (같은 종가)
+// 🔄 매수 + 쿼터매도 동시 체결 반영 (같은 종가) 버튼 클릭시 호출
 function applyBothExecution() {
   const r = currentCalcResult;
   if (r.shares === 0) {
@@ -506,24 +592,16 @@ function applyBothExecution() {
     showToast('매수/매도 가능한 수량이 없습니다.');
     return;
   }
+  openModal('both');
+}
 
-  const inputStr = prompt(
-    `🔄 [매수 + 쿼터매도 동시 체결]\n` +
-    `오늘 실제 종가(=체결가)를 입력하세요.\n\n` +
-    `처리 순서: ① 쿼터매도 ${r.sellQQty}주 → ② 매수 ${r.buyQty}주\n` +
-    `(원래 보유수량 ${r.shares}주 기준 1/4 = ${r.sellQQty}주 매도 후 매수)`,
-    r.locSellQPrice.toFixed(2)
-  );
-
-  if (inputStr === null) return;
-
-  const closingPrice = parseFloat(inputStr);
+function submitBoth(closingPrice) {
+  const r = currentCalcResult;
   if (isNaN(closingPrice) || closingPrice <= 0) {
     showToast('올바른 종가를 입력해주세요.');
     return;
   }
 
-  // Step 1: 쿼터매도 먼저 (원래 보유수량 기준 1/4)
   const originalShares = r.shares;
   const originalAvg = r.avgPrice;
   const sellQQty = Math.floor(originalShares / 4);
@@ -535,11 +613,10 @@ function applyBothExecution() {
   const sellCostBasis = sellQQty * originalAvg;
   const sellPL = sellProceeds - sellCostBasis;
 
-  // Step 2: 매수 (쿼터매도 후 상태 기준)
   const buyQty = r.buyQty;
   let finalShares = sharesAfterSell;
   let finalCash = cashAfterSell;
-  let finalAvg = originalAvg; // 매도 시 평단 유지
+  let finalAvg = originalAvg;
   let finalT = tAfterSell;
 
   if (buyQty > 0) {
@@ -571,9 +648,10 @@ function applyBothExecution() {
     elSharesHeld.value = finalShares;
     elAvgPrice.value = finalAvg.toFixed(4);
     elCashLeft.value = finalCash.toFixed(2);
-    calculate();
 
     showToast(`🔄 동시 체결 완료! ${finalShares}주, T=${finalT.toFixed(2)}, 잔금 $${finalCash.toFixed(0)} (쿼터매도 ${plText})`);
+    closeModal();
+    calculate();
   }
 }
 

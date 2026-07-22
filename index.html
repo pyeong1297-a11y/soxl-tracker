@@ -245,6 +245,41 @@
       </section>
     </main>
 
+    <!-- Custom Dialog Modal -->
+    <div id="custom-modal" class="modal-overlay">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 id="modal-title">📥 체결 반영</h3>
+          <button type="button" class="btn-close-modal" onclick="closeModal()">×</button>
+        </div>
+        <div class="modal-body">
+          <div id="modal-desc" class="modal-desc">내용</div>
+          
+          <!-- Input 1 -->
+          <div class="form-group" id="modal-input-group-1">
+            <label id="modal-label-1" for="modal-input-1">실제 체결가 ($)</label>
+            <div class="input-wrapper">
+              <span class="prefix">$</span>
+              <input type="number" id="modal-input-1" step="0.0001" min="0" placeholder="0.00" oninput="saveModalInputs()" />
+            </div>
+          </div>
+          
+          <!-- Input 2 -->
+          <div class="form-group" id="modal-input-group-2" style="display: none;">
+            <label id="modal-label-2" for="modal-input-2">LOC 쿼터매도 체결가 ($)</label>
+            <div class="input-wrapper">
+              <span class="prefix">$</span>
+              <input type="number" id="modal-input-2" step="0.0001" min="0" placeholder="0.00" oninput="saveModalInputs()" />
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-modal-cancel" onclick="closeModal()">취소</button>
+          <button type="button" id="btn-modal-submit" class="btn-modal-submit" onclick="handleModalSubmit()">반영하기</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Toast Notification -->
     <div id="toast" class="toast">클립보드에 복사되었습니다!</div>
 
