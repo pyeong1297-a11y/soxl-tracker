@@ -327,11 +327,13 @@ function openModal(type, isRestoring = false) {
   }
 
   modal.classList.add('show');
+  document.body.style.overflow = 'hidden';
 }
 
 function closeModal() {
   const modal = document.getElementById('custom-modal');
   modal.classList.remove('show');
+  document.body.style.overflow = '';
   state.pendingModal = null;
   saveState();
 }

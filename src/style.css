@@ -649,7 +649,10 @@ select:focus, input:focus {
   -webkit-backdrop-filter: blur(8px);
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
+  padding: 1.5rem 1rem;
+  padding-top: 10vh;
+  overflow-y: auto;
   z-index: 2000;
   opacity: 0;
   visibility: hidden;
