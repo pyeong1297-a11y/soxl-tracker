@@ -644,6 +644,7 @@ select:focus, input:focus {
   left: 0;
   width: 100vw;
   height: 100vh;
+  height: calc(var(--vh, 1vh) * 100);
   background: rgba(11, 15, 25, 0.75);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -651,7 +652,7 @@ select:focus, input:focus {
   justify-content: center;
   align-items: flex-start;
   padding: 1.5rem 1rem;
-  padding-top: 10vh;
+  padding-top: max(1rem, env(safe-area-inset-top));
   overflow-y: auto;
   z-index: 2000;
   opacity: 0;

@@ -56,7 +56,43 @@ document.addEventListener('DOMContentLoaded', () => {
   loadSavedState();
   calculate();
   restorePendingModal();
+  initViewportFix();
 });
+
+// Mobile viewport height fix — tracks actual visible height (excluding keyboard)
+function initViewportFix() {
+  function updateVh() {
+    const vh = (window.visualViewport ? window.visualViewport.height : window.innerHeight) * 0.01;
+    document.documentElement.style.setProperty('--vh', vh + 'px');
+
+    // Also reposition the modal overlay to match viewport offset (for browsers that scroll the page up)
+    const modal = document.getElementById('custom-modal');
+    if (window.visualViewport && modal) {
+      modal.style.top = window.visualViewport.offsetTop + 'px';
+      modal.style.height = window.visualViewport.height + 'px';
+    }
+  }
+
+  updateVh();
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', updateVh);
+    window.visualViewport.addEventListener('scroll', updateVh);
+  } else {
+    window.addEventListener('resize', updateVh);
+  }
+
+  // When modal inputs are focused, scroll them into the visible area
+  document.getElementById('modal-input-1').addEventListener('focus', scrollModalInput);
+  document.getElementById('modal-input-2').addEventListener('focus', scrollModalInput);
+}
+
+function scrollModalInput(e) {
+  // Small delay to wait for the keyboard to finish opening
+  setTimeout(() => {
+    e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 300);
+}
 
 function loadSavedState() {
   try {
