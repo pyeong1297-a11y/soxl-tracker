@@ -1,5 +1,5 @@
 // LocalStorage Keys
-const STORAGE_KEY = 'infinity_buying_v4_state_v2';
+const STORAGE_KEY = 'infinity_buying_v4_state_v3';
 const USER_KEY_STORAGE = 'infinity_buying_user_id';
 
 let currentUserId = '';
@@ -10,10 +10,10 @@ const defaultState = {
   symbol: 'SOXL',
   splitCount: 30,
   totalCapital: 6000,
-  avgPrice: 191.2883,
+  avgPrice: 191.2848,
   sharesHeld: 21,
-  explicitT: null,
-  explicitCash: null,
+  explicitT: 20.4875,
+  explicitCash: 1983.0206,
   pendingModal: null
 };
 
@@ -229,8 +229,8 @@ function loadSavedState() {
   elSymbol.value = state.symbol || 'SOXL';
   elSplitCount.value = state.splitCount || 30;
   elTotalCapital.value = state.totalCapital || 6000;
-  elAvgPrice.value = state.avgPrice || 194.6026;
-  elSharesHeld.value = state.sharesHeld !== undefined ? state.sharesHeld : 19;
+  elAvgPrice.value = state.avgPrice || 191.2848;
+  elSharesHeld.value = state.sharesHeld !== undefined ? state.sharesHeld : 21;
   elCashLeft.value = (state.explicitCash !== null && state.explicitCash !== undefined) ? state.explicitCash : '';
 }
 
