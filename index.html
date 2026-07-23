@@ -114,6 +114,20 @@
                 <input type="number" id="cash-left" value="" step="1" min="0" oninput="onCashInput()" placeholder="자동 (원금 - 사용액)" />
               </div>
             </div>
+
+            <!-- 목표 익절률 선택 -->
+            <div class="form-group">
+              <label for="target-profit-pct">
+                목표 익절률 (지정가)
+                <span class="label-sub">(200일선 위 +30% 권장)</span>
+              </label>
+              <select id="target-profit-pct" onchange="calculate()">
+                <option value="20" selected>+20% (기본 모드)</option>
+                <option value="30">+30% (200일선 위 / 상승장)</option>
+                <option value="15">+15% (TQQQ 권장 / 보수적)</option>
+                <option value="25">+25% (중간 옵션)</option>
+              </select>
+            </div>
           </div>
         </form>
       </section>
@@ -185,7 +199,7 @@
 
           <!-- 3. 지정가 목표 매도 (+20%) -->
           <div class="ticket-item order-sell-target">
-            <div class="order-badge">🎯 지정가 매도 (+20%)</div>
+            <div class="order-badge" id="ticket-sell-t-badge">🎯 지정가 매도 (+20%)</div>
             <div class="order-info">
               <div class="order-price-row">
                 <span class="order-price" id="ticket-sell-t-price">$233.52</span>
@@ -237,8 +251,8 @@
 
         <!-- Target Profit Sell Reset -->
         <div class="target-reset-wrapper">
-          <button type="button" class="btn-apply btn-apply-target" onclick="applyTargetSellExecution()">
-            🎯 +20% 지정가 익절 체결 (수익금 복리합산 & T=0 새 사이클 시작)
+          <button type="button" id="btn-apply-target-text" class="btn-apply btn-apply-target" onclick="applyTargetSellExecution()">
+            🎯 지정가 익절 체결 (수익금 복리합산 & T=0 새 사이클 시작)
           </button>
         </div>
       </section>

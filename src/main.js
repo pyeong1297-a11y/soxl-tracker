@@ -1,5 +1,5 @@
 // LocalStorage Keys
-const STORAGE_KEY = 'infinity_buying_v4_state_v3';
+const STORAGE_KEY = 'infinity_buying_v4_state_v4';
 const USER_KEY_STORAGE = 'infinity_buying_user_id';
 
 let currentUserId = '';
@@ -12,6 +12,7 @@ const defaultState = {
   totalCapital: 6000,
   avgPrice: 191.2848,
   sharesHeld: 21,
+  targetProfitPct: 20,
   explicitT: 20.4875,
   explicitCash: 1983.0206,
   pendingModal: null
@@ -27,6 +28,7 @@ const elTotalCapital = document.getElementById('total-capital');
 const elAvgPrice = document.getElementById('avg-price');
 const elSharesHeld = document.getElementById('shares-held');
 const elCashLeft = document.getElementById('cash-left');
+const elTargetProfitPct = document.getElementById('target-profit-pct');
 
 const elSyncUserId = document.getElementById('sync-user-id');
 const elSyncStatus = document.getElementById('sync-status');
@@ -49,9 +51,11 @@ const elTicketBuyCost = document.getElementById('ticket-buy-cost');
 const elTicketSellQPrice = document.getElementById('ticket-sell-q-price');
 const elTicketSellQQty = document.getElementById('ticket-sell-q-qty');
 const elTicketSellQSub = document.getElementById('ticket-sell-q-sub');
+const elTicketSellTBadge = document.getElementById('ticket-sell-t-badge');
 const elTicketSellTPrice = document.getElementById('ticket-sell-t-price');
 const elTicketSellTQty = document.getElementById('ticket-sell-t-qty');
 const elTicketSellTSub = document.getElementById('ticket-sell-t-sub');
+const elBtnApplyTargetText = document.getElementById('btn-apply-target-text');
 
 const elScenBuyT = document.getElementById('scen-buy-t');
 const elScenBuyQty = document.getElementById('scen-buy-qty');
@@ -231,6 +235,7 @@ function loadSavedState() {
   elTotalCapital.value = state.totalCapital || 6000;
   elAvgPrice.value = state.avgPrice || 191.2848;
   elSharesHeld.value = state.sharesHeld !== undefined ? state.sharesHeld : 21;
+  if (elTargetProfitPct) elTargetProfitPct.value = state.targetProfitPct || 20;
   elCashLeft.value = (state.explicitCash !== null && state.explicitCash !== undefined) ? state.explicitCash : '';
 }
 
@@ -336,14 +341,17 @@ function calculate() {
   const locSellQPrice = starPoint;
   const sellQQty = Math.floor(shares / 4);
 
-  const targetProfitPct = (symbol === 'TQQQ') ? 1.15 : 1.20;
-  const targetSellPrice = avgPrice * targetProfitPct;
+  const targetProfitPctVal = parseFloat(elTargetProfitPct ? elTargetProfitPct.value : (state.targetProfitPct || 20)) || 20;
+  state.targetProfitPct = targetProfitPctVal;
+
+  const targetProfitMultiplier = 1 + (targetProfitPctVal / 100);
+  const targetSellPrice = avgPrice * targetProfitMultiplier;
   const sellTQty = Math.max(0, shares - sellQQty);
 
   currentCalcResult = {
     T, cashRemaining, buyQty, sellQQty, sellTQty,
     locBuyPrice, locSellQPrice, targetSellPrice, buyTotalCost,
-    baseConst, coef, N, avgPrice, shares, capital
+    baseConst, coef, N, avgPrice, shares, capital, targetProfitPctVal
   };
 
   saveState();
@@ -408,9 +416,11 @@ function calculate() {
     elTicketSellQPrice.innerText = `$${locSellQPrice.toFixed(2)}`;
     elTicketSellQQty.innerText = `${sellQQty}주`;
     if (elTicketSellQSub) elTicketSellQSub.innerText = `(보유 ${shares}주 중 ${sellQQty}주)`;
+    if (elTicketSellTBadge) elTicketSellTBadge.innerText = `🎯 지정가 매도 (+${targetProfitPctVal}%)`;
     elTicketSellTPrice.innerText = `$${targetSellPrice.toFixed(2)}`;
     elTicketSellTQty.innerText = `${sellTQty}주`;
     if (elTicketSellTSub) elTicketSellTSub.innerText = `(보유 ${shares}주 중 ${sellTQty}주)`;
+    if (elBtnApplyTargetText) elBtnApplyTargetText.innerText = `🎯 +${targetProfitPctVal}% 지정가 익절 체결 (수익금 복리합산 & T=0 새 사이클 시작)`;
   }
 
   const nextBuyT = Math.min(N, T + 1);
@@ -476,9 +486,9 @@ function openModal(type, isRestoring = false) {
   }
   else if (type === 'target') {
     title.innerText = '🎯 지정가 익절 체결 반영';
-    desc.innerText = `지정가 매도(+20%) 및 LOC 쿼터매도 체결 결과를 입력하세요.`;
+    desc.innerText = `지정가 매도(+${r.targetProfitPctVal || 20}%) 및 LOC 쿼터매도 체결 결과를 입력하세요.`;
     
-    label1.innerText = `지정가 매도 체결가 ($) [수량: ${r.sellTQty}주]`;
+    label1.innerText = `지정가 매도 (+${r.targetProfitPctVal || 20}%) 체결가 ($) [수량: ${r.sellTQty}주]`;
     input1.value = r.targetSellPrice.toFixed(2);
     
     group2.style.display = 'flex';
