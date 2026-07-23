@@ -30,6 +30,24 @@
 
     <!-- Main Content -->
     <main class="main-content">
+      <!-- Sync & Personal Link Bar -->
+      <section class="card sync-card">
+        <div class="sync-bar">
+          <div class="sync-info">
+            <span class="sync-icon">☁️</span>
+            <div class="sync-text-group">
+              <div class="sync-title-row">
+                <span class="sync-label">내 전용 키:</span>
+                <input type="text" id="sync-user-id" class="sync-id-input" placeholder="키 입력" onchange="changeUserId(this.value)" />
+                <span class="sync-status-badge" id="sync-status">🟢 연결됨</span>
+              </div>
+              <p class="sync-desc">이 링크(URL) 하나로 접속하면 모바일·PC·시크릿모드 상관없이 100% 자동 동기화됩니다.</p>
+            </div>
+          </div>
+          <button type="button" class="btn-copy-sync" onclick="copyPersonalLink()">🔗 내 전용 링크 복사</button>
+        </div>
+      </section>
+
       <!-- Input Card -->
       <section class="card input-card">
         <div class="card-title-bar">

@@ -1,5 +1,9 @@
-// LocalStorage Key
+// LocalStorage Keys
 const STORAGE_KEY = 'infinity_buying_v4_state';
+const USER_KEY_STORAGE = 'infinity_buying_user_id';
+
+let currentUserId = '';
+let cloudSaveTimer = null;
 
 // Initial default state
 const defaultState = {
@@ -23,6 +27,9 @@ const elTotalCapital = document.getElementById('total-capital');
 const elAvgPrice = document.getElementById('avg-price');
 const elSharesHeld = document.getElementById('shares-held');
 const elCashLeft = document.getElementById('cash-left');
+
+const elSyncUserId = document.getElementById('sync-user-id');
+const elSyncStatus = document.getElementById('sync-status');
 
 const elDispTVal = document.getElementById('disp-t-val');
 const elDispPhase = document.getElementById('disp-phase');
@@ -54,12 +61,124 @@ const elScenSellQty = document.getElementById('scen-sell-qty');
 const elScenSellCash = document.getElementById('scen-sell-cash');
 
 // Initialize
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  initSyncUser();
   loadSavedState();
   calculate();
   restorePendingModal();
   initViewportFix();
+  await loadStateFromCloud(currentUserId);
 });
+
+function initSyncUser() {
+  const urlParams = new URLSearchParams(window.location.search);
+  let id = urlParams.get('id');
+
+  if (!id) {
+    id = localStorage.getItem(USER_KEY_STORAGE);
+  }
+
+  if (!id) {
+    id = 'usr_' + Math.random().toString(36).substring(2, 8);
+  }
+
+  currentUserId = id.trim().toLowerCase();
+  localStorage.setItem(USER_KEY_STORAGE, currentUserId);
+
+  if (elSyncUserId) {
+    elSyncUserId.value = currentUserId;
+  }
+
+  const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?id=' + currentUserId;
+  window.history.replaceState({ path: newUrl }, '', newUrl);
+}
+
+async function loadStateFromCloud(userId) {
+  if (!userId) return;
+  if (elSyncStatus) {
+    elSyncStatus.innerText = '🔄 불러오는 중...';
+    elSyncStatus.style.borderColor = 'rgba(96, 165, 250, 0.3)';
+    elSyncStatus.style.color = '#60a5fa';
+  }
+
+  try {
+    const res = await fetch(`/api/state?id=${encodeURIComponent(userId)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data === 'object') {
+        state = { ...defaultState, ...data };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        loadSavedState();
+        calculate();
+        if (elSyncStatus) {
+          elSyncStatus.innerText = '🟢 DB 동기화됨';
+          elSyncStatus.style.borderColor = 'rgba(52, 211, 153, 0.3)';
+          elSyncStatus.style.color = '#34d399';
+        }
+        return;
+      }
+    }
+    await saveStateToCloud(userId, state);
+    if (elSyncStatus) {
+      elSyncStatus.innerText = '🟢 DB 연동 완료';
+      elSyncStatus.style.borderColor = 'rgba(52, 211, 153, 0.3)';
+      elSyncStatus.style.color = '#34d399';
+    }
+  } catch (err) {
+    console.warn('Cloud sync load failed:', err);
+    if (elSyncStatus) {
+      elSyncStatus.innerText = '💾 로컬 저장';
+      elSyncStatus.style.borderColor = 'rgba(245, 158, 11, 0.3)';
+      elSyncStatus.style.color = '#fbbf24';
+    }
+  }
+}
+
+async function saveStateToCloud(userId, stateData) {
+  if (!userId) return;
+  try {
+    await fetch('/api/state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: userId, data: stateData })
+    });
+    if (elSyncStatus) {
+      elSyncStatus.innerText = '🟢 DB 동기화됨';
+      elSyncStatus.style.borderColor = 'rgba(52, 211, 153, 0.3)';
+      elSyncStatus.style.color = '#34d399';
+    }
+  } catch (err) {
+    console.warn('Cloud save failed:', err);
+  }
+}
+
+function changeUserId(newId) {
+  const cleanId = newId.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  if (!cleanId) {
+    showToast('올바른 키를 입력해주세요.');
+    if (elSyncUserId) elSyncUserId.value = currentUserId;
+    return;
+  }
+
+  currentUserId = cleanId;
+  localStorage.setItem(USER_KEY_STORAGE, currentUserId);
+  if (elSyncUserId) elSyncUserId.value = currentUserId;
+
+  const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?id=' + currentUserId;
+  window.history.replaceState({ path: newUrl }, '', newUrl);
+
+  showToast(`전용 키가 '${currentUserId}'로 변경되었습니다.`);
+  loadStateFromCloud(currentUserId);
+}
+
+function copyPersonalLink() {
+  const link = window.location.protocol + "//" + window.location.host + window.location.pathname + '?id=' + currentUserId;
+  navigator.clipboard.writeText(link).then(() => {
+    showToast('🔗 내 전용 동기화 링크가 복사되었습니다!');
+  }).catch(() => {
+    showToast(`링크: ${link}`);
+  });
+}
 
 // Mobile keyboard handling — modal centered by default, moves to top when keyboard opens
 function initViewportFix() {
@@ -67,14 +186,11 @@ function initViewportFix() {
   const input1 = document.getElementById('modal-input-1');
   const input2 = document.getElementById('modal-input-2');
 
-  // When inputs are focused → keyboard opens → move modal to top
   function onInputFocus() {
     modal.classList.add('keyboard-up');
   }
 
-  // When inputs lose focus → keyboard closes → return modal to center
   function onInputBlur() {
-    // Small delay because blur fires before the next focus when switching inputs
     setTimeout(() => {
       const active = document.activeElement;
       if (active !== input1 && active !== input2) {
@@ -88,15 +204,12 @@ function initViewportFix() {
   input1.addEventListener('blur', onInputBlur);
   input2.addEventListener('blur', onInputBlur);
 
-  // When user leaves app and comes back → close keyboard, re-center modal
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && modal.classList.contains('show')) {
-      // Blur active input to close keyboard
       if (document.activeElement === input1 || document.activeElement === input2) {
         document.activeElement.blur();
       }
       modal.classList.remove('keyboard-up');
-      // Reset any inline styles from previous viewport hacks
       modal.style.top = '';
       modal.style.height = '';
     }
@@ -127,6 +240,16 @@ function saveState() {
   } catch (e) {
     console.error('Failed to save state', e);
   }
+
+  if (cloudSaveTimer) clearTimeout(cloudSaveTimer);
+  if (elSyncStatus) {
+    elSyncStatus.innerText = '⏳ 저장 중...';
+    elSyncStatus.style.borderColor = 'rgba(96, 165, 250, 0.3)';
+    elSyncStatus.style.color = '#60a5fa';
+  }
+  cloudSaveTimer = setTimeout(() => {
+    saveStateToCloud(currentUserId, state);
+  }, 400);
 }
 
 function onCashInput() {
