@@ -41,8 +41,10 @@ const elTicketBuyQty = document.getElementById('ticket-buy-qty');
 const elTicketBuyCost = document.getElementById('ticket-buy-cost');
 const elTicketSellQPrice = document.getElementById('ticket-sell-q-price');
 const elTicketSellQQty = document.getElementById('ticket-sell-q-qty');
+const elTicketSellQSub = document.getElementById('ticket-sell-q-sub');
 const elTicketSellTPrice = document.getElementById('ticket-sell-t-price');
 const elTicketSellTQty = document.getElementById('ticket-sell-t-qty');
+const elTicketSellTSub = document.getElementById('ticket-sell-t-sub');
 
 const elScenBuyT = document.getElementById('scen-buy-t');
 const elScenBuyQty = document.getElementById('scen-buy-qty');
@@ -270,8 +272,10 @@ function calculate() {
     elTicketBuyCost.innerText = `$${(firstDayQty * (avgPrice || 0)).toFixed(2)}`;
     elTicketSellQPrice.innerText = '-';
     elTicketSellQQty.innerText = '0주';
+    if (elTicketSellQSub) elTicketSellQSub.innerText = '';
     elTicketSellTPrice.innerText = '-';
     elTicketSellTQty.innerText = '0주';
+    if (elTicketSellTSub) elTicketSellTSub.innerText = '';
   } else {
     elTicketBuyBadge.innerText = '📥 LOC 매수';
     elTicketBuyPrice.innerText = `$${locBuyPrice.toFixed(2)}`;
@@ -280,8 +284,10 @@ function calculate() {
     elTicketBuyCost.innerText = `$${buyTotalCost.toFixed(2)}`;
     elTicketSellQPrice.innerText = `$${locSellQPrice.toFixed(2)}`;
     elTicketSellQQty.innerText = `${sellQQty}주`;
+    if (elTicketSellQSub) elTicketSellQSub.innerText = `(보유 ${shares}주 중 ${sellQQty}주)`;
     elTicketSellTPrice.innerText = `$${targetSellPrice.toFixed(2)}`;
     elTicketSellTQty.innerText = `${sellTQty}주`;
+    if (elTicketSellTSub) elTicketSellTSub.innerText = `(보유 ${shares}주 중 ${sellTQty}주)`;
   }
 
   const nextBuyT = Math.min(N, T + 1);
