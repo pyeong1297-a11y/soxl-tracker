@@ -10,8 +10,8 @@ const defaultState = {
   symbol: 'SOXL',
   splitCount: 30,
   totalCapital: 6000,
-  avgPrice: 194.6026,
-  sharesHeld: 19,
+  avgPrice: 191.2883,
+  sharesHeld: 21,
   explicitT: null,
   explicitCash: null,
   pendingModal: null
