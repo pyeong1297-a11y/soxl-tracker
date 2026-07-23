@@ -1,5 +1,5 @@
 // LocalStorage Keys
-const STORAGE_KEY = 'infinity_buying_v4_state_v4';
+const STORAGE_KEY = 'infinity_buying_v4_state_v5';
 const USER_KEY_STORAGE = 'infinity_buying_user_id';
 
 let currentUserId = '';
@@ -319,12 +319,22 @@ function calculate() {
   const isReverseMode = T >= (N - 1);
   const isSecondHalf = T >= halfN;
 
-  // Star %
+  const elTargetProfitPct = document.getElementById('target-profit-pct');
+  const targetProfitPctVal = parseFloat(elTargetProfitPct ? elTargetProfitPct.value : (state.targetProfitPct || 20)) || 20;
+  state.targetProfitPct = targetProfitPctVal;
+
+  // Star % Calculation (Dynamically linked to target profit selection)
   let baseConst = 20;
   let coef = 40 / N;
-  if (symbol === 'TQQQ') {
+  if (targetProfitPctVal === 30) {
+    baseConst = 30;
+    coef = 60 / N; // 30분할 시 30 - 2T
+  } else if (targetProfitPctVal === 15 || symbol === 'TQQQ') {
     baseConst = 15;
     coef = 30 / N;
+  } else if (targetProfitPctVal === 25) {
+    baseConst = 25;
+    coef = 50 / N;
   }
 
   const starPct = baseConst - (coef * T);
@@ -340,9 +350,6 @@ function calculate() {
 
   const locSellQPrice = starPoint;
   const sellQQty = Math.floor(shares / 4);
-
-  const targetProfitPctVal = parseFloat(elTargetProfitPct ? elTargetProfitPct.value : (state.targetProfitPct || 20)) || 20;
-  state.targetProfitPct = targetProfitPctVal;
 
   const targetProfitMultiplier = 1 + (targetProfitPctVal / 100);
   const targetSellPrice = avgPrice * targetProfitMultiplier;
