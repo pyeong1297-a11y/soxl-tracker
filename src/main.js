@@ -1,5 +1,5 @@
 // LocalStorage Keys
-const STORAGE_KEY = 'infinity_buying_v4_state';
+const STORAGE_KEY = 'infinity_buying_v4_state_v2';
 const USER_KEY_STORAGE = 'infinity_buying_user_id';
 
 let currentUserId = '';
