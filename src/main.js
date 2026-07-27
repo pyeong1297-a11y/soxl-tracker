@@ -97,6 +97,8 @@ function initSyncUser() {
   window.history.replaceState({ path: newUrl }, '', newUrl);
 }
 
+const MASTER_JSONBLOB_URL = 'https://jsonblob.com/api/jsonBlob/019fa249-2983-703e-81cf-88a98eedc828';
+
 async function loadStateFromCloud(userId) {
   if (!userId) return;
   if (elSyncStatus) {
@@ -105,12 +107,35 @@ async function loadStateFromCloud(userId) {
     elSyncStatus.style.color = '#60a5fa';
   }
 
+  // 1. Try local backend first (/api/state)
   try {
     const res = await fetch(`/api/state?id=${encodeURIComponent(userId)}`);
     if (res.ok) {
       const data = await res.json();
-      if (data && typeof data === 'object') {
+      if (data && typeof data === 'object' && !data.error) {
         state = { ...defaultState, ...data };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        loadSavedState();
+        calculate();
+        if (elSyncStatus) {
+          elSyncStatus.innerText = '🟢 DB 동기화됨';
+          elSyncStatus.style.borderColor = 'rgba(52, 211, 153, 0.3)';
+          elSyncStatus.style.color = '#34d399';
+        }
+        return;
+      }
+    }
+  } catch (err) {
+    // Local API not available (e.g. GitHub Pages)
+  }
+
+  // 2. Fallback to Global CORS Cloud Store (JSONBlob) for GitHub Pages
+  try {
+    const blobRes = await fetch(MASTER_JSONBLOB_URL);
+    if (blobRes.ok) {
+      const storeData = await blobRes.json();
+      if (storeData && storeData[userId]) {
+        state = { ...defaultState, ...storeData[userId] };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
         loadSavedState();
         calculate();
@@ -140,12 +165,41 @@ async function loadStateFromCloud(userId) {
 
 async function saveStateToCloud(userId, stateData) {
   if (!userId) return;
+
+  // 1. Try local backend first (/api/state)
   try {
-    await fetch('/api/state', {
+    const res = await fetch('/api/state', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: userId, data: stateData })
     });
+    if (res.ok) {
+      if (elSyncStatus) {
+        elSyncStatus.innerText = '🟢 DB 동기화됨';
+        elSyncStatus.style.borderColor = 'rgba(52, 211, 153, 0.3)';
+        elSyncStatus.style.color = '#34d399';
+      }
+      return;
+    }
+  } catch (err) {
+    // Ignore local API error
+  }
+
+  // 2. Fallback to Global CORS Cloud Store (JSONBlob) for GitHub Pages
+  try {
+    let storeData = {};
+    const getRes = await fetch(MASTER_JSONBLOB_URL);
+    if (getRes.ok) {
+      storeData = await getRes.json();
+    }
+    storeData[userId] = stateData;
+
+    await fetch(MASTER_JSONBLOB_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(storeData)
+    });
+
     if (elSyncStatus) {
       elSyncStatus.innerText = '🟢 DB 동기화됨';
       elSyncStatus.style.borderColor = 'rgba(52, 211, 153, 0.3)';
