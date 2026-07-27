@@ -323,6 +323,11 @@ function onCashInput() {
   calculate();
 }
 
+function onPositionInputChange() {
+  state.explicitT = null;
+  calculate();
+}
+
 function resetDefaults() {
   if (confirm('모든 입력값을 기본값으로 초기화하시겠습니까?')) {
     state = { ...defaultState };
