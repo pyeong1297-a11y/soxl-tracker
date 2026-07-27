@@ -4,17 +4,18 @@ const USER_KEY_STORAGE = 'infinity_buying_user_id';
 
 let currentUserId = '';
 let cloudSaveTimer = null;
+let isInitialCloudLoading = true;
 
 // Initial default state
 const defaultState = {
   symbol: 'SOXL',
   splitCount: 30,
   totalCapital: 6000,
-  avgPrice: 191.2848,
-  sharesHeld: 21,
+  avgPrice: 187.4474,
+  sharesHeld: 23,
   targetProfitPct: 20,
-  explicitT: 20.4875,
-  explicitCash: 1983.0206,
+  explicitT: null,
+  explicitCash: 1688.7098,
   pendingModal: null
 };
 
@@ -72,6 +73,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   restorePendingModal();
   initViewportFix();
   await loadStateFromCloud(currentUserId);
+  isInitialCloudLoading = false;
 });
 
 function initSyncUser() {
@@ -287,8 +289,8 @@ function loadSavedState() {
   elSymbol.value = state.symbol || 'SOXL';
   elSplitCount.value = state.splitCount || 30;
   elTotalCapital.value = state.totalCapital || 6000;
-  elAvgPrice.value = state.avgPrice || 191.2848;
-  elSharesHeld.value = state.sharesHeld !== undefined ? state.sharesHeld : 21;
+  elAvgPrice.value = state.avgPrice !== undefined ? state.avgPrice : 187.4474;
+  elSharesHeld.value = state.sharesHeld !== undefined ? state.sharesHeld : 23;
   if (elTargetProfitPct) elTargetProfitPct.value = state.targetProfitPct || 20;
   elCashLeft.value = (state.explicitCash !== null && state.explicitCash !== undefined) ? state.explicitCash : '';
 }
@@ -299,6 +301,8 @@ function saveState() {
   } catch (e) {
     console.error('Failed to save state', e);
   }
+
+  if (isInitialCloudLoading) return;
 
   if (cloudSaveTimer) clearTimeout(cloudSaveTimer);
   if (elSyncStatus) {
