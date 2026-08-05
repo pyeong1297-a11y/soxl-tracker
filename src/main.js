@@ -504,6 +504,15 @@ function calculate() {
   elScenSellT.innerText = nextSellT.toFixed(2);
   elScenSellQty.innerText = `${Math.max(0, shares - sellQQty)}주`;
   elScenSellCash.innerText = `+$${sellProceeds.toFixed(0)} 회복`;
+
+  const elScenSellBadge = document.getElementById('scen-sell-badge');
+  if (elScenSellBadge) {
+    if (nextSellT < halfN && T >= halfN) {
+      elScenSellBadge.style.display = 'inline-block';
+    } else {
+      elScenSellBadge.style.display = 'none';
+    }
+  }
 }
 
 // ====== 1-CLICK EXECUTION HANDLERS (WITH CUSTOM MODAL DIALOG) ======
@@ -550,9 +559,13 @@ function openModal(type, isRestoring = false) {
   } 
   else if (type === 'sell') {
     title.innerText = '📤 쿼터매도 체결 반영';
-    desc.innerText = `오늘 실제 체결가(종가)를 입력하세요.\n(LOC 쿼터매도 조건은 $${r.locSellQPrice.toFixed(2)} 이상이었으며, 종가가 더 높았다면 그 가격을 입력하세요.)`;
+    desc.innerText = `오늘 실제 체결가(종가)와 매도 수량을 입력하세요.\n(LOC 쿼터매도 조건은 $${r.locSellQPrice.toFixed(2)} 이상, 추천 쿼터 수량은 ${r.sellQQty}주입니다.)`;
     label1.innerText = '실제 체결가 ($)';
     input1.value = r.locSellQPrice.toFixed(2);
+
+    group2.style.display = 'flex';
+    label2.innerText = `실제 매도 수량 (주) [추천 쿼터: ${r.sellQQty}주]`;
+    input2.value = r.sellQQty;
   }
   else if (type === 'target') {
     title.innerText = '🎯 지정가 익절 체결 반영';
@@ -632,7 +645,7 @@ function handleModalSubmit() {
   if (type === 'buy') {
     submitBuy(val1);
   } else if (type === 'sell') {
-    submitSell(val1);
+    submitSell(val1, val2);
   } else if (type === 'target') {
     submitTarget(val1, val2);
   } else if (type === 'both') {
@@ -714,19 +727,29 @@ function applySellExecution() {
   openModal('sell');
 }
 
-function submitSell(actualPrice) {
+function submitSell(actualPrice, customQty) {
   const r = currentCalcResult;
   if (isNaN(actualPrice) || actualPrice <= 0) {
     showToast('올바른 체결가를 입력해주세요.');
     return;
   }
 
-  const newShares = Math.max(0, r.shares - r.sellQQty);
-  const sellProceeds = r.sellQQty * actualPrice;
-  const newCash = r.cashRemaining + sellProceeds;
-  const newT = r.T * 0.75;
+  let sellQty = (!isNaN(customQty) && customQty > 0) ? Math.floor(customQty) : r.sellQQty;
+  if (sellQty > r.shares) {
+    sellQty = r.shares;
+  }
 
-  const costBasis = r.sellQQty * r.avgPrice;
+  if (sellQty <= 0) {
+    showToast('매도 수량은 1주 이상이어야 합니다.');
+    return;
+  }
+
+  const newShares = Math.max(0, r.shares - sellQty);
+  const sellProceeds = sellQty * actualPrice;
+  const newCash = r.cashRemaining + sellProceeds;
+  const newT = r.shares > 0 ? r.T * (newShares / r.shares) : 0;
+
+  const costBasis = sellQty * r.avgPrice;
   const realizedPL = sellProceeds - costBasis;
 
   state.explicitT = newT;
@@ -737,7 +760,7 @@ function submitSell(actualPrice) {
   elCashLeft.value = newCash.toFixed(2);
 
   const plText = realizedPL >= 0 ? `+$${realizedPL.toFixed(0)} 이익` : `-$${Math.abs(realizedPL).toFixed(0)} 손실`;
-  showToast(`📤 쿼터매도 체결 반영! ${r.sellQQty}주 매도 ($${actualPrice.toFixed(2)}), T=${newT.toFixed(2)}, 잔금 $${newCash.toFixed(0)} (${plText})`);
+  showToast(`📤 쿼터매도 체결 반영! ${sellQty}주 매도 ($${actualPrice.toFixed(2)}), T=${newT.toFixed(2)}, 잔금 $${newCash.toFixed(0)} (${plText})`);
 
   closeModal();
   calculate();
